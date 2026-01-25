@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 /**
@@ -74,6 +76,15 @@ class OverlayService : LifecycleService() {
     
     /** 오버레이 뷰 인스턴스 */
     private var overlayView: ComposeView? = null
+    
+    /** SavedStateRegistryController */
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    
+    /** SavedStateRegistryOwner 래퍼 */
+    private val savedStateRegistryOwner = object : SavedStateRegistryOwner {
+        override val lifecycle = this@OverlayService.lifecycle
+        override val savedStateRegistry = savedStateRegistryController.savedStateRegistry
+    }
 
     /**
      * 서비스가 생성될 때 호출됩니다.
@@ -86,6 +97,7 @@ class OverlayService : LifecycleService() {
      */
     override fun onCreate() {
         super.onCreate()
+        savedStateRegistryController.performRestore(null)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -142,7 +154,7 @@ class OverlayService : LifecycleService() {
     private fun createOverlay() {
         val composeView = ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@OverlayService)
-            setViewTreeSavedStateRegistryOwner(this@OverlayService)
+            setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
             setContent {
                 MaterialTheme {
                     OverlayButton()
