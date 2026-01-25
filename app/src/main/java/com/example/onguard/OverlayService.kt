@@ -43,7 +43,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
  * @author OnGuard Team
  * @since 1.0
  */
-class OverlayService : LifecycleService() {
+class OverlayService : LifecycleService(), SavedStateRegistryOwner {
 
     companion object {
         /** 알림 채널 ID */
@@ -79,12 +79,9 @@ class OverlayService : LifecycleService() {
     
     /** SavedStateRegistryController */
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
-    
-    /** SavedStateRegistryOwner 래퍼 */
-    private val savedStateRegistryOwner = object : SavedStateRegistryOwner {
-        override val lifecycle = this@OverlayService.lifecycle
-        override val savedStateRegistry = savedStateRegistryController.savedStateRegistry
-    }
+
+    /** SavedStateRegistryOwner 구현 */
+    override val savedStateRegistry = savedStateRegistryController.savedStateRegistry
 
     /**
      * 서비스가 생성될 때 호출됩니다.
@@ -154,7 +151,7 @@ class OverlayService : LifecycleService() {
     private fun createOverlay() {
         val composeView = ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@OverlayService)
-            setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
+            setViewTreeSavedStateRegistryOwner(this@OverlayService)
             setContent {
                 MaterialTheme {
                     OverlayButton()
