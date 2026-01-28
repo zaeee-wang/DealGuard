@@ -169,16 +169,40 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * 스캠 경고 오버레이 표시
+     *
+     * ScamAnalysis의 모든 정보를 OverlayService로 전달합니다:
+     * - confidence: 신뢰도
+     * - reasons: 위험 요소 목록
+     * - warningMessage: LLM 생성 경고 메시지
+     * - scamType: 스캠 유형
+     * - suspiciousParts: 의심 문구
+     */
     private fun showScamWarning(analysis: ScamAnalysis, sourceApp: String) {
         handler.post {
             try {
-                Log.w(TAG, "SCAM DETECTED! Confidence: ${analysis.confidence}, Reasons: ${analysis.reasons}")
+                Log.w(TAG, "SCAM DETECTED! Type: ${analysis.scamType}, Confidence: ${analysis.confidence}")
+                Log.d(TAG, "Warning message: ${analysis.warningMessage}")
+                Log.d(TAG, "Reasons: ${analysis.reasons}")
 
-                // OverlayService 시작
+                // OverlayService 시작 (새 필드 포함)
                 val intent = Intent(this, OverlayService::class.java).apply {
-                    putExtra("confidence", analysis.confidence)
-                    putExtra("reasons", analysis.reasons.joinToString(", "))
-                    putExtra("sourceApp", sourceApp)
+                    putExtra(OverlayService.EXTRA_CONFIDENCE, analysis.confidence)
+                    putExtra(OverlayService.EXTRA_REASONS, analysis.reasons.joinToString(", "))
+                    putExtra(OverlayService.EXTRA_SOURCE_APP, sourceApp)
+
+                    // LLM 생성 데이터
+                    putExtra(OverlayService.EXTRA_WARNING_MESSAGE, analysis.warningMessage)
+                    putExtra(OverlayService.EXTRA_SCAM_TYPE, analysis.scamType.name)
+                    putStringArrayListExtra(
+                        OverlayService.EXTRA_SUSPICIOUS_PARTS,
+                        ArrayList(analysis.suspiciousParts)
+                    )
+                    putStringArrayListExtra(
+                        OverlayService.EXTRA_DETECTED_KEYWORDS,
+                        ArrayList(analysis.detectedKeywords)
+                    )
                 }
                 startService(intent)
 
