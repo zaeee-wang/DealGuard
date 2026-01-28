@@ -1,0 +1,65 @@
+{
+  "version": "1.0.0",
+  "project": "DealGuard",
+  "hooks": {
+    "pre-commit": {
+      "enabled": true,
+      "commands": [
+        "./gradlew ktlintFormat",
+        "./gradlew lint",
+        "./gradlew test"
+      ]
+    },
+    "pre-push": {
+      "enabled": true,
+      "commands": [
+        "./gradlew testDebugUnitTest",
+        "./gradlew detekt"
+      ]
+    }
+  },
+  "permissions": {
+    "auto_approve": {
+      "read_files": true,
+      "write_files": false,
+      "execute_commands": false
+    },
+    "require_approval": [
+      "git push",
+      "gradle assembleRelease",
+      "rm -rf",
+      "api key changes"
+    ]
+  },
+  "automation": {
+    "test_coverage": {
+      "enabled": true,
+      "min_coverage": 70,
+      "critical_packages": [
+        "com.dealguard.detector"
+      ],
+      "critical_min_coverage": 90
+    },
+    "code_quality": {
+      "ktlint": true,
+      "detekt": true,
+      "lint_warnings_as_errors": false
+    },
+    "security_checks": {
+      "check_api_keys": true,
+      "check_accessibility_compliance": true,
+      "check_privacy_policy": true
+    }
+  },
+  "development": {
+    "branch_naming": {
+      "feature": "feature/[기능명]",
+      "bugfix": "bugfix/[버그명]",
+      "refactor": "refactor/[대상]",
+      "test": "test/[테스트대상]",
+      "docs": "docs/[문서명]"
+    },
+    "commit_convention": "conventional-commits",
+    "default_reviewers": ["android-code-reviewer", "test-engineer"]
+  }
+}
