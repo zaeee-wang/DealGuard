@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.dealguard.data.local.AppDatabase
 import com.dealguard.data.local.dao.ScamAlertDao
+import com.dealguard.data.repository.ScamAlertRepositoryImpl
+import com.dealguard.domain.repository.ScamAlertRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,5 +33,11 @@ object DatabaseModule {
     @Singleton
     fun provideScamAlertDao(database: AppDatabase): ScamAlertDao {
         return database.scamAlertDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideScamAlertRepository(dao: ScamAlertDao): ScamAlertRepository {
+        return ScamAlertRepositoryImpl(dao)
     }
 }
