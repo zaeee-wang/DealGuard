@@ -25,7 +25,7 @@ class PhishingUrlRepositoryImpl @Inject constructor(
 
     companion object {
         private const val TAG = "PhishingUrlRepository"
-        private const val CSV_FILE_PATH = "kisa/phishing_urls.csv"
+        private const val CSV_FILE_PATH = "kisa/KISA.csv"
         private const val BATCH_SIZE = 500
     }
 
