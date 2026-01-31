@@ -5,7 +5,9 @@ import com.onguard.domain.repository.PhishingUrlRepository
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
@@ -23,12 +25,10 @@ class HybridScamDetectorTest {
 
     @Before
     fun setup() {
-        mockPhishingUrlRepository = mockk()
-        mockLlmScamDetector = mockk() // 2. 모의 객체 생성
+        mockPhishingUrlRepository = mockk<PhishingUrlRepository>(relaxed = true)
+        mockLlmScamDetector = mockk<LlmScamDetector>(relaxed = true)
 
-        // 기본 동작 정의 (필요 시)
         coEvery { mockPhishingUrlRepository.isPhishingUrl(any()) } returns false
-        // LLM 분석은 기본적으로 스캠이 아니라고 가정하거나 null 반환 설정
         coEvery { mockLlmScamDetector.analyze(any()) } returns null
 
         keywordMatcher = KeywordMatcher()
