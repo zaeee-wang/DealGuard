@@ -3,8 +3,11 @@ package com.dealguard.di
 import android.content.Context
 import androidx.room.Room
 import com.dealguard.data.local.AppDatabase
+import com.dealguard.data.local.dao.PhishingUrlDao
 import com.dealguard.data.local.dao.ScamAlertDao
+import com.dealguard.data.repository.PhishingUrlRepositoryImpl
 import com.dealguard.data.repository.ScamAlertRepositoryImpl
+import com.dealguard.domain.repository.PhishingUrlRepository
 import com.dealguard.domain.repository.ScamAlertRepository
 import dagger.Module
 import dagger.Provides
@@ -23,7 +26,7 @@ object DatabaseModule {
         return Room.databaseBuilder(
             context,
             AppDatabase::class.java,
-            "scamguard_database"
+            "dealguard_database"
         )
             .fallbackToDestructiveMigration()
             .build()
@@ -37,7 +40,22 @@ object DatabaseModule {
 
     @Provides
     @Singleton
+    fun providePhishingUrlDao(database: AppDatabase): PhishingUrlDao {
+        return database.phishingUrlDao()
+    }
+
+    @Provides
+    @Singleton
     fun provideScamAlertRepository(dao: ScamAlertDao): ScamAlertRepository {
         return ScamAlertRepositoryImpl(dao)
+    }
+
+    @Provides
+    @Singleton
+    fun providePhishingUrlRepository(
+        @ApplicationContext context: Context,
+        dao: PhishingUrlDao
+    ): PhishingUrlRepository {
+        return PhishingUrlRepositoryImpl(context, dao)
     }
 }

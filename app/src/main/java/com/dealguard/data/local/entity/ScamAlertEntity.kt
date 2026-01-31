@@ -2,17 +2,17 @@ package com.dealguard.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.util.Date
 
 @Entity(tableName = "scam_alerts")
 data class ScamAlertEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val text: String,
-    val sourceApp: String,
-    val isScam: Boolean,
+    val message: String,
     val confidence: Float,
-    val reasons: List<String>,
+    val sourceApp: String,
     val detectedKeywords: List<String>,
-    val timestamp: Long,
+    val reasons: List<String>,
+    val timestamp: Date,
     val isDismissed: Boolean = false
 )

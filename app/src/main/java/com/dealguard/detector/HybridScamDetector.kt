@@ -18,6 +18,17 @@ import kotlin.math.max
  * 1. Rule-based 1차 필터 (빠름)
  * 2. 애매한 경우 LLM 추가 분석 (정확함)
  * 3. 결과 결합 및 최종 판정
+ *
+ * 신뢰도 계산:
+ * - 기본: max(키워드 신뢰도, URL 위험도)
+ * - URL 보너스: +30% (의심 URL 존재 시)
+ * - 조합 보너스: +15% (긴급성 + 금전 + URL 조합)
+ *
+ * 임계값:
+ * - 0.7 이상: 고위험 (즉시 스캠 판정)
+ * - 0.4~0.7: 중위험 (LLM 분석 또는 추가 조합 분석)
+ * - 0.3~0.4: 저위험 (LLM 분석 트리거)
+ * - 0.5 이상: 최종 스캠 판정
  */
 @Singleton
 class HybridScamDetector @Inject constructor(
@@ -28,7 +39,11 @@ class HybridScamDetector @Inject constructor(
 
     companion object {
         private const val TAG = "HybridScamDetector"
+
+        // 고위험 임계값: 70% 이상이면 즉시 스캠 판정
         private const val HIGH_CONFIDENCE_THRESHOLD = 0.7f
+
+        // 중위험 임계값: 40% 이상이면 추가 조합 분석 수행
         private const val MEDIUM_CONFIDENCE_THRESHOLD = 0.4f
         private const val LOW_CONFIDENCE_THRESHOLD = 0.3f
 
@@ -76,7 +91,10 @@ class HybridScamDetector @Inject constructor(
         // 4. Calculate rule-based confidence
         var ruleConfidence = keywordResult.confidence
 
-        // URL analysis adds to confidence
+        // URL 분석 결과 반영
+        // - 의심 URL이 있으면 최소한 URL 위험도만큼 신뢰도 보장
+        // - 추가로 URL 위험도의 30%를 보너스로 부여
+        // - 이유: URL이 포함된 스캠은 위험도가 높음 (피싱 링크 가능성)
         if (urlResult.suspiciousUrls.isNotEmpty()) {
             ruleConfidence = max(ruleConfidence, urlResult.riskScore)
             ruleConfidence += urlResult.riskScore * 0.3f
@@ -104,6 +122,9 @@ class HybridScamDetector @Inject constructor(
                     text.contains("송금", ignoreCase = true) ||
                     text.contains("계좌", ignoreCase = true)
 
+            // 스캠 황금 패턴: 긴급성 + 금전 요구 + URL
+            // - 전형적인 피싱 패턴으로 추가 15% 보너스
+            // - 예: "급하게 이 링크로 입금해주세요"
             if (hasUrgency && hasMoney && urlResult.urls.isNotEmpty()) {
                 ruleConfidence += 0.15f
                 combinedReasons.add("의심스러운 조합: 긴급 + 금전 + URL")

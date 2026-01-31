@@ -36,8 +36,14 @@ import javax.inject.Inject
 /**
  * 스캠 경고 오버레이 서비스
  *
- * 스캠이 탐지되면 화면 상단에 경고 배너를 표시합니다.
+ * ScamDetectionAccessibilityService에서 스캠 탐지 시 호출됨.
+ * 화면 상단에 경고 배너를 표시하고 DB에 기록.
+ *
  * LLM이 생성한 경고 메시지, 위험 요소, 의심 문구를 함께 표시합니다.
+ *
+ * UI/UX팀 연동 포인트:
+ * - btn_details 클릭 시 상세 화면으로 이동 (구현 필요)
+ * - 배경색은 신뢰도에 따라 자동 변경 (아래 색상 로직 참고)
  */
 @AndroidEntryPoint
 class OverlayService : Service() {
@@ -54,7 +60,7 @@ class OverlayService : Service() {
         private const val TAG = "OverlayService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "overlay_service_channel"
-        private const val AUTO_DISMISS_DELAY = 15000L // 15 seconds (증가)
+        private const val AUTO_DISMISS_DELAY = 15000L // 15 seconds
 
         // Intent extra keys
         const val EXTRA_CONFIDENCE = "confidence"
@@ -134,7 +140,11 @@ class OverlayService : Service() {
         val inflater = LayoutInflater.from(this)
         overlayView = inflater.inflate(R.layout.overlay_scam_warning, null)
 
-        // Configure background color based on confidence level
+        // 신뢰도별 배경색 (Material Design 색상)
+        // - 90% 이상: 빨강 (#D32F2F) - 거의 확정적 스캠, 즉시 주의 필요
+        // - 70~89%: 주황 (#F57C00) - 높은 위험, 주의 권고
+        // - 50~69%: 황색 (#FFA000) - 의심 단계, 확인 권장
+        // - 50% 미만: 노랑 (#FBC02D) - 낮은 위험
         val backgroundColor = when {
             confidence >= 0.9f -> Color.parseColor("#D32F2F") // Red - 매우 위험
             confidence >= 0.7f -> Color.parseColor("#F57C00") // Orange - 위험
@@ -178,7 +188,15 @@ class OverlayService : Service() {
 
         // Set button listeners
         overlayView?.findViewById<Button>(R.id.btn_details)?.setOnClickListener {
-            // TODO: Open detail activity with full analysis
+            // TODO(UI/UX팀): AlertDetailActivity 구현 필요
+            // 전달할 데이터:
+            // - confidence: 위험도 (0.0~1.0)
+            // - reasons: 탐지 이유 문자열
+            // - sourceApp: 출처 앱 패키지명
+            // 구현 내용:
+            // - 상세 탐지 정보 표시
+            // - "신고하기" 버튼 (KISA/경찰청 연동)
+            // - "무시하기" 버튼 (DB에 isDismissed=true 저장)
             removeOverlay()
             stopSelf()
         }

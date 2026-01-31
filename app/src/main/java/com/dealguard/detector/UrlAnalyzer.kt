@@ -1,13 +1,49 @@
 package com.dealguard.detector
 
+import android.util.Log
 import android.util.Patterns
+import com.dealguard.domain.repository.PhishingUrlRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * URL 위험도 분석기
+ *
+ * URL 위험도 점수 기준:
+ * - 0.9f: KISA 피싱사이트 DB 등록 URL (확정적 위험, 신고된 피싱)
+ * - 0.5f: 금융기관 사칭 의심 (가짜 은행 도메인)
+ * - 0.4f: 무료/의심 도메인 (.tk, .ml 등 - 스캠에 자주 사용)
+ * - 0.35f: IP 주소 직접 접근 (정상 서비스는 도메인 사용)
+ * - 0.3f: 단축 URL (목적지 불명, 추적 어려움)
+ * - 0.25f: 피싱 키워드 포함 (login, verify 등)
+ * - 0.2f: 과도하게 긴 URL 또는 특수문자 과다 (난독화 의심)
+ *
+ * 점수 누적 방식:
+ * - 여러 위험 요소가 있으면 점수가 누적됨
+ * - 최종 점수는 0~1 범위로 정규화
+ */
 @Singleton
-class UrlAnalyzer @Inject constructor() {
+class UrlAnalyzer @Inject constructor(
+    private val phishingUrlRepository: PhishingUrlRepository
+) {
 
-    // 의심스러운 도메인 확장자
+    companion object {
+        private const val TAG = "UrlAnalyzer"
+
+        // 위험도 점수 상수 (근거 문서화)
+        private const val SCORE_KISA_DB = 0.9f      // KISA 등록 = 거의 확정
+        private const val SCORE_BANK_SPOOF = 0.5f   // 금융기관 사칭 = 매우 위험
+        private const val SCORE_FREE_TLD = 0.4f     // 무료 도메인 = 위험
+        private const val SCORE_IP_ACCESS = 0.35f   // IP 직접 접근 = 의심
+        private const val SCORE_SHORT_URL = 0.3f    // 단축 URL = 목적지 불명
+        private const val SCORE_PHISHING_KW = 0.25f // 피싱 키워드 = 의심
+        private const val SCORE_LONG_URL = 0.2f     // 긴 URL = 난독화 의심
+        private const val SCORE_SPECIAL_CHAR = 0.2f // 특수문자 과다 = 난독화 의심
+    }
+
+    // 무료/의심 도메인 확장자
+    // - 스캠에 자주 악용되는 무료 도메인
+    // - 정상적인 서비스도 사용 가능하나 주의 필요
     private val suspiciousTlds = setOf(
         "tk", "ml", "ga", "cf", "gq",  // 무료 도메인
         "top", "xyz", "club", "work", "click",
@@ -43,7 +79,7 @@ class UrlAnalyzer @Inject constructor() {
         val riskScore: Float
     )
 
-    fun analyze(text: String): UrlAnalysisResult {
+    suspend fun analyze(text: String): UrlAnalysisResult {
         val urls = extractUrls(text)
         val suspiciousUrls = mutableListOf<String>()
         val reasons = mutableListOf<String>()
@@ -51,6 +87,18 @@ class UrlAnalyzer @Inject constructor() {
 
         urls.forEach { url ->
             val urlLower = url.lowercase()
+
+            // 0. KISA 피싱사이트 DB 체크 (최우선)
+            try {
+                if (phishingUrlRepository.isPhishingUrl(url)) {
+                    suspiciousUrls.add(url)
+                    riskScore += 0.9f
+                    reasons.add("KISA 피싱사이트 DB 등록 URL")
+                    Log.w(TAG, "KISA DB match found: $url")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "KISA DB check failed", e)
+            }
 
             // 1. 무료/의심 도메인 체크
             if (suspiciousTlds.any { tld -> urlLower.contains(".$tld") }) {

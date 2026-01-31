@@ -5,14 +5,43 @@ import com.dealguard.domain.model.ScamAnalysis
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * 규칙 기반 키워드 매칭기
+ *
+ * 3단계 가중치 체계로 스캠 키워드를 분석합니다.
+ * 스캠 판정 임계값: 0.5 (50%)
+ *
+ * 사용 예시:
+ * - "급전 필요합니다" -> HIGH 키워드 1개 (0.25) -> 스캠 아님
+ * - "계좌번호 알려주세요" -> CRITICAL 키워드 1개 (0.4) -> 스캠 아님
+ * - "급전 필요, 계좌번호 보내세요" -> CRITICAL(0.4) + HIGH(0.25) = 0.65 -> 스캠!
+ */
 @Singleton
 class KeywordMatcher @Inject constructor() {
 
-    // 키워드 가중치 enum
+    /**
+     * 키워드 가중치 체계
+     *
+     * 가중치 설계 원칙:
+     * - CRITICAL 2개 이상 또는 CRITICAL+HIGH 조합 시 스캠 판정
+     * - 단일 키워드로는 스캠 판정 불가 (오탐 방지)
+     *
+     * CRITICAL (0.4f): 직접적 금전/인증 요구, 기관 사칭
+     *   - 예: "계좌번호 알려주세요", "OTP번호 보내세요"
+     *   - 2개 조합 시 0.8 (스캠 확정)
+     *
+     * HIGH (0.25f): 간접적 금전 관련, 피싱 키워드
+     *   - 예: "급전", "대출", "인증번호"
+     *   - CRITICAL과 조합 시 0.65 (스캠 판정)
+     *
+     * MEDIUM (0.15f): 의심스러운 표현
+     *   - 예: "당첨", "환급", "무료"
+     *   - 단독으로는 스캠 판정 불가, 보조 지표로 활용
+     */
     private enum class KeywordWeight(val weight: Float) {
-        CRITICAL(0.4f),  // 매우 위험
-        HIGH(0.25f),     // 높은 위험
-        MEDIUM(0.15f)    // 중간 위험
+        CRITICAL(0.4f),
+        HIGH(0.25f),
+        MEDIUM(0.15f)
     }
 
     // 가중치별 키워드 맵
@@ -91,24 +120,38 @@ class KeywordMatcher @Inject constructor() {
     // 정규식 패턴 (가중치별)
     private data class PatternInfo(val regex: Regex, val weight: Float, val description: String)
 
+    /**
+     * 정규식 패턴 가중치 (False Positive 방지를 위해 조정됨)
+     *
+     * 가중치 조정 이유:
+     * - 전화번호/계좌번호 패턴은 키보드 UI, 자동완성 등에서 자주 탐지됨
+     * - 격리된 단일 패턴은 스캠 증거로 약함 → 가중치 감소
+     * - URL, 주민번호는 높은 위험 → 가중치 유지
+     */
     private val highRiskPatterns = listOf(
-        // 계좌번호 패턴
-        PatternInfo(Regex("\\d{3,4}-\\d{3,4}-\\d{4,6}"), 0.35f, "계좌번호 패턴"),
-        PatternInfo(Regex("\\d{10,14}"), 0.3f, "연속된 숫자 (계좌번호 가능성)"),
+        // 계좌번호 패턴 - 가중치 감소 (0.35 → 0.2)
+        // UI 요소에서 자주 오탐지되므로 감소
+        PatternInfo(Regex("\\d{3,4}-\\d{3,4}-\\d{4,6}"), 0.2f, "계좌번호 패턴"),
+        // 연속 숫자 - 가중치 대폭 감소 (0.3 → 0.1)
+        // 키보드 숫자열 "0123456789" 오탐 방지
+        PatternInfo(Regex("\\d{10,14}"), 0.1f, "연속된 숫자"),
 
-        // 전화번호 패턴
-        PatternInfo(Regex("010-?\\d{4}-?\\d{4}"), 0.2f, "휴대폰 번호"),
-        PatternInfo(Regex("\\d{3}-\\d{3,4}-\\d{4}"), 0.2f, "전화번호"),
+        // 전화번호 패턴 - 가중치 감소 (0.2 → 0.1)
+        // 자동완성, 연락처 UI에서 자주 오탐지
+        PatternInfo(Regex("010-?\\d{4}-?\\d{4}"), 0.1f, "휴대폰 번호"),
+        PatternInfo(Regex("\\d{3}-\\d{3,4}-\\d{4}"), 0.1f, "전화번호"),
 
-        // 주민번호 패턴
+        // 주민번호 패턴 - 가중치 유지 (0.4)
+        // 매우 위험한 개인정보이므로 높은 가중치 유지
         PatternInfo(Regex("\\d{6}-?[1-4]\\d{6}"), 0.4f, "주민등록번호"),
 
-        // URL 패턴 (단축 URL 포함)
+        // URL 패턴 - 가중치 유지
+        // 단축 URL과 무료 도메인은 피싱에 자주 사용
         PatternInfo(Regex("https?://bit\\.ly/\\S+"), 0.25f, "단축 URL (bit.ly)"),
         PatternInfo(Regex("https?://goo\\.gl/\\S+"), 0.25f, "단축 URL (goo.gl)"),
         PatternInfo(Regex("https?://\\S*\\.(tk|ml|ga|cf|gq)\\S*"), 0.3f, "무료 도메인 URL"),
 
-        // 금액 패턴
+        // 금액 패턴 - 가중치 유지
         PatternInfo(Regex("\\d{1,3}(,\\d{3})+원"), 0.15f, "금액 표시"),
         PatternInfo(Regex("\\d+만원"), 0.15f, "만원 단위 금액")
     )
@@ -140,18 +183,29 @@ class KeywordMatcher @Inject constructor() {
             }
         }
 
-        // 2. 정규식 패턴 분석
+        // 2. 정규식 패턴 분석 (최소 매칭 요구사항 적용)
+        //
+        // False Positive 방지:
+        // - 격리된 단일 패턴(전화번호, 계좌번호)만으로는 스캠 판정 안함
+        // - 조건: 2개 이상 패턴 OR (1개 패턴 + 키워드)
         val detectedPatterns = highRiskPatterns.filter { patternInfo ->
             patternInfo.regex.containsMatchIn(text)
         }
 
-        if (detectedPatterns.isNotEmpty()) {
-            val patternConfidence = detectedPatterns.sumOf { it.weight.toDouble() }.toFloat()
-            totalConfidence += patternConfidence
+        val hasKeywords = allDetectedKeywords.isNotEmpty()
+        val patternCount = detectedPatterns.size
 
-            detectedPatterns.forEach { pattern ->
-                reasons.add("${pattern.description} 감지")
+        if (detectedPatterns.isNotEmpty()) {
+            // 조건: 2개 이상 패턴 OR (1개 패턴 + 키워드 존재)
+            if (patternCount >= 2 || (patternCount >= 1 && hasKeywords)) {
+                val patternConfidence = detectedPatterns.sumOf { it.weight.toDouble() }.toFloat()
+                totalConfidence += patternConfidence
+
+                detectedPatterns.forEach { pattern ->
+                    reasons.add("${pattern.description} 감지")
+                }
             }
+            // else: 격리된 단일 패턴은 신뢰도에 포함하지 않음 (오탐 방지)
         }
 
         // 3. 조합 패턴 보너스 (여러 카테고리 동시 발견 시 위험도 증가)

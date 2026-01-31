@@ -76,3 +76,19 @@ app/src/main/assets/models/*.task
 # API Keys (NEVER COMMIT)
 kaggle.json
 .kaggle/
+
+# Kotlin cache
+.kotlin/
+
+# Downloaded Gradle distributions
+gradle-*.zip
+
+# Temporary folders
+gradle-temp/
+temp/
+
+# Windows artifacts
+nul
+
+# Claude Code
+.claude/
