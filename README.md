@@ -1,83 +1,211 @@
-🛡️ DealGuard (Project On-Guard)
-"Your Chat stays Private, Your Money stays Safe."
+# DealGuard - 피싱/스캠 탐지 오버레이 앱
 
-🔒 서버 전송 없는 On-Device AI 기반 중고거래 사기 탐지 솔루션
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
+[![Android](https://img.shields.io/badge/Android-8.0+-green.svg)](https://developer.android.com)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-1. 📢 Project Overview
-이 프로젝트는 안드로이드 On-Device AI 기술을 활용하여, 중고거래 채팅(당근마켓 등) 중 발생하는 **사기 유도 패턴(플랫폼 이탈, 악성 URL)**을 실시간으로 감지하고 경고합니다. 모든 데이터 처리는 스마트폰 내부에서 이루어지며, 사용자 데이터는 절대 외부로 유출되지 않습니다.
+플랫폼에 구애받지 않는 실시간 스캠 탐지 안드로이드 앱
 
-2. 👥 Team Roles & Responsibilities (R&R)
-우리는 3인 1팀으로 구성되며, 각자의 전문 영역을 병렬로 개발한 뒤 dev 브랜치에서 통합합니다.
+**데이콘 경진대회 출품작** - 경찰청 후원, 데이터유니버스 주최
 
-🧠 AI & Model Engineering (팀장)
-핵심 목표: "폰 안에서 돌아가는 가볍고 똑똑한 뇌 만들기"
-주요 업무:
-Model Selection: Gemma-2b-it (Google) 모델 선정 및 분석.
-Quantization: MLC LLM을 활용해 모델을 안드로이드용(q4f16_1)으로 경량화/변환.
-Prompt Eng: 사기 탐지에 특화된 Few-shot System Prompt 설계 및 테스트.
-Deliverable: .bin 모델 파일, MLC Config JSON, 안드로이드 연동용 Helper Class.
-⚙️ Android Core & Logic (백엔드 포지션)
-핵심 목표: "채팅을 훔쳐보고(눈), 뇌와 UI를 연결하는 신경망 구현"
-주요 업무:
-Input Module: AccessibilityService를 구현하여 화면 텍스트 실시간 추출.
-Filtering: 중복 데이터 방지(Debounce) 및 당근마켓 패키지 필터링.
-Logic Hub: Kotlin Coroutines를 사용해 AI 추론과 URL 정규식 검사를 비동기 병렬 처리.
-Fact Check: 정규식(Regex)을 이용한 악성 URL 및 전화번호 패턴 추출.
-🎨 Android UI & UX (프론트엔드 포지션)
-핵심 목표: "사용자에게 직관적인 경고를 띄우는 오버레이 구현"
-주요 업무:
-Overlay UI: WindowManager와 Jetpack Compose를 활용해 항상 떠 있는 뷰 구현.
-Interaction: 위험도(안전/주의/위험)에 따라 색상과 크기가 변하는 애니메이션 적용.
-Settings: 앱 감시 ON/OFF 및 권한 설정(SYSTEM_ALERT_WINDOW) 화면 구현.
-Optimization: 오버레이 뷰가 다른 앱의 터치를 방해하지 않도록 플래그(FLAG_NOT_FOCUSABLE) 최적화.
-3. 🛠️ Tech Stack
-Category	Technology
-Language	Kotlin (100%)
-Android SDK	Min SDK 26 (Android 8.0)
-UI Framework	Jetpack Compose, WindowManager
-AI Engine	MLC LLM (Android SDK), Gemma-2b-it
-Async	Kotlin Coroutines, Flow
-Input	AccessibilityService API
-Git	GitHub Flow (Feature Branch Strategy)
-4. 🌊 Git Workflow (협업 규칙)
-우리는 충돌 방지를 위해 엄격한 브랜치 전략을 사용합니다.
-main: 언제나 실행 가능한 최종 배포 버전. (함부로 건드리지 않음)
-dev: 개발 통합용 브랜치. (모든 기능은 여기로 모임)
-feature/...: 각자 작업하는 공간.
-feature/ai-model (AI 담당)
-feature/accessibility (Core 담당)
-feature/overlay-ui (UI 담당)
-🚨 Rule: 절대 dev나 main에 직접 Push 하지 마세요. 반드시 feature 브랜치에서 작업 후 **PR(Pull Request)**을 보내주세요.
+---
 
-5. 📅 Roadmap (3 Weeks)
-Week 1 (MVP Unit Test):
-✅ AI: Gemma-2b 양자화 완료 및 로컬 테스트.
-✅ Core: 당근마켓 채팅 로그 Logcat 출력 성공.
-✅ UI: 화면에 빨간색 오버레이 버튼 띄우기 성공.
-Week 2 (Integration):
-🔄 AI 모델 안드로이드 탑재 및 연동.
-🔄 텍스트 입력 → AI 판단 → UI 변경 흐름 연결.
-Week 3 (Polish & Demo):
-🚀 발열 및 응답 속도 최적화.
-🎬 시연 영상 촬영 (사기 탐지 시나리오).
-⚡ Quick Start (Setup)
-Clone Project:
-Bash
-git clone -b dev [Repository URL]
-Prerequisites:
-Android Studio (Koala 이상 권장)
-JDK 17 (Android Studio 내장)
-실물 안드로이드 폰 (권장) 또는 에뮬레이터 (RAM 4GB 이상 설정)
+## 📱 주요 기능
 
-📦 Gradle 동기화 (중요!)
-1. Android Studio에서 프로젝트를 열면 자동으로 Gradle 동기화가 시작됩니다.
-2. 하단 진행 표시줄에서 "Gradle: Executing tasks..." 또는 "Gradle: Build" 메시지를 확인하세요.
-3. 동기화가 완료되면 "Gradle build finished" 메시지가 표시됩니다.
-4. 만약 동기화가 실패하면:
-   - File > Sync Project with Gradle Files (또는 Ctrl+Shift+O / Mac: Cmd+Shift+O)
-   - File > Invalidate Caches > Invalidate and Restart
-   - Android SDK가 제대로 설치되어 있는지 확인 (Tools > SDK Manager)
+- ✅ **플랫폼 무관 모니터링**: 18개 이상의 메신저/거래 앱 지원
+  - 메신저: 카카오톡, 텔레그램, 왓츠앱, 페이스북 메신저, 인스타그램, 라인, 디스코드 등
+  - SMS/MMS: Google Messages, Samsung Messages, 기본 메시지 앱
+  - 거래 플랫폼: 당근마켓
+- 🛡️ **실시간 스캠 탐지**: Rule-based + On-device AI 하이브리드 분석
+- 🚨 **즉시 경고 오버레이**: 위험 감지 시 화면 상단 배너 표시
+- 🔐 **프라이버시 우선**: 모든 분석은 온디바이스에서 수행 (서버 전송 없음)
+- 📊 **사기 DB 조회**: 더치트 API, KISA 피싱사이트 DB 연동
 
-Permissions:
-앱 실행 후 [다른 앱 위에 그리기] 권한과 **[접근성 권한]**을 반드시 수동으로 허용해야 작동합니다.
-Copyright © 2026 DealGuard Team. All Rights Reserved.
+---
+
+## 🎯 차별점
+
+| 기존 앱 | DealGuard |
+|--------|-----------|
+| 특정 앱에만 동작 | **모든 메신저 지원** |
+| 서버로 데이터 전송 | **온디바이스 처리** |
+| 사후 신고 | **실시간 경고** |
+| 느린 반응 속도 | **100ms 이하 지연** |
+
+---
+
+## 📱 지원 앱 목록
+
+### 메신저 앱 (9개)
+- 카카오톡 (com.kakao.talk)
+- 텔레그램 (org.telegram.messenger)
+- 왓츠앱 (com.whatsapp)
+- 페이스북 메신저 (com.facebook.orca)
+- 인스타그램 (com.instagram.android)
+- 라인 (jp.naver.line.android)
+- 위챗 (com.tencent.mm)
+- 디스코드 (com.discord)
+- 스냅챗 (com.snapchat.android)
+
+### SMS/MMS 앱 (3개)
+- Google Messages (com.google.android.apps.messaging)
+- Samsung Messages (com.samsung.android.messaging)
+- 기본 메시지 앱 (com.android.mms)
+
+### 거래 플랫폼 (2개)
+- 당근마켓 (kr.co.daangn)
+- 네이버 (com.nhn.android.search)
+
+### 기타 (4개)
+- 바이버 (com.viber.voip)
+- 킥 (kik.android)
+- 스카이프 (com.skype.raider)
+
+**총 18개 앱 지원** - 지속적으로 추가 예정
+
+---
+
+## 🔧 기술 스택
+
+```
+Language:       Kotlin 1.9+
+Min SDK:        26 (Android 8.0)
+Target SDK:     34 (Android 14)
+Architecture:   MVVM + Clean Architecture
+DI:             Hilt
+Async:          Kotlin Coroutines + Flow
+UI:             Jetpack Compose + XML (Overlay)
+ML:             TensorFlow Lite (MobileBERT)
+Network:        Retrofit2 + OkHttp
+Local DB:       Room
+Build:          Gradle Kotlin DSL
+```
+
+---
+
+## 🚀 시작하기
+
+### 1. 환경 요구사항
+
+- Android Studio Hedgehog (2023.1.1) 이상
+- JDK 17
+- Android SDK 34
+
+### 2. 프로젝트 클론
+
+```bash
+git clone https://github.com/your-username/DealGuard.git
+cd DealGuard
+```
+
+### 3. API 키 설정
+
+`local.properties.template`을 복사하여 `local.properties` 생성:
+
+```properties
+sdk.dir=/path/to/your/Android/sdk
+THECHEAT_API_KEY=your_api_key_here
+```
+
+### 4. 빌드 & 실행
+
+```bash
+# Debug 빌드
+./gradlew assembleDebug
+
+# 기기에 설치
+./gradlew installDebug
+
+# 테스트 실행
+./gradlew test
+```
+
+---
+
+## 📋 개발 로드맵
+
+자세한 개발 계획은 [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) 참조
+
+**현재 진행 상황**: Week 1 Day 2 ✅
+
+- [x] 프로젝트 초기 설정
+- [x] Clean Architecture 구조 생성
+- [x] 기본 도메인 모델 정의
+- [x] 접근성 서비스 구현 (Day 2) - 18개 앱 지원
+- [ ] Rule-based 탐지 엔진 (Day 3)
+
+---
+
+## 🏗️ 프로젝트 구조
+
+```
+app/src/main/java/com/dealguard/
+├── di/                     # Hilt DI modules
+├── data/                   # Data Layer (Repository, API, DB)
+├── domain/                 # Domain Layer (Models, UseCases)
+├── presentation/           # Presentation Layer (UI, ViewModel)
+├── service/                # Android Services (Accessibility, Overlay)
+├── detector/               # Scam Detection Engine
+└── util/                   # Utilities
+```
+
+---
+
+## 🧪 테스트
+
+### 단위 테스트
+
+```bash
+./gradlew test
+```
+
+### 테스트 커버리지
+
+```bash
+./gradlew testDebugUnitTest jacocoTestReport
+```
+
+**목표 커버리지**: 전체 70%, detector 패키지 90%
+
+### 통합 테스트
+
+```bash
+./gradlew connectedAndroidTest
+```
+
+---
+
+## 🔐 보안 & 프라이버시
+
+- ✅ **AccessibilityService 데이터는 절대 외부 전송 금지**
+- ✅ **사용자 동의 없이 모니터링 시작 금지**
+- ✅ **Google Play Prominent Disclosure 준수**
+- ✅ **API 키 하드코딩 금지 (BuildConfig 사용)**
+
+자세한 내용은 [CLAUDE.md](CLAUDE.md#-security-requirements) 참조
+
+---
+
+## 📄 라이선스
+
+이 프로젝트는 데이콘 경진대회 출품작입니다.
+
+---
+
+## 👤 개발자
+
+- **Zaeewang** - Initial work
+
+---
+
+## 🙏 감사의 말
+
+- 경찰청 & 데이터유니버스 - 경진대회 주최
+- 더치트 - 스캠 DB API 제공
+- KISA - 피싱사이트 공공 DB 제공
+
+---
+
+## 📞 문의
+
+프로젝트 관련 문의사항은 Issues 탭을 이용해주세요.
