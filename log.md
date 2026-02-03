@@ -4,6 +4,39 @@
 
 ---
 
+## [0.2.6] - 2026-02-03
+
+### Added
+- **스크롤 중복 알림 방지 기능** (P1 UX Critical)
+  - 증상: 채팅방에서 과거 메시지로 스크롤 시 이미 탐지된 스캠 메시지가 새로운 알림으로 재표시
+  - 사용자 요구사항: 스크롤로 보이는 과거 메시지는 무시, 새로 도착한 메시지는 같은 내용이어도 탐지
+
+#### ScamDetectionAccessibilityService.kt
+- **세션 캐시 상수 추가**
+  - `SCROLL_DUPLICATE_WINDOW_MS = 10_000L` (10초 윈도우)
+  - `CACHE_MAX_SIZE = 50` (메모리 관리)
+- **캐시 맵 추가**
+  - `recentAlertCache: MutableMap<String, Long>` (키: 앱+키워드, 값: 알림시각)
+- **중복 방지 함수 추가**
+  - `generateAlertCacheKey()`: 앱 패키지 + 정렬된 키워드 목록으로 캐시 키 생성
+  - `isRecentlyAlerted()`: 10초 내 동일 키워드 조합 알림 여부 확인
+  - `registerAlert()`: 캐시 등록 + 오래된 항목 자동 정리
+- **analyzeForScam() 수정**
+  - 스캠 탐지 시 캐시 체크 후 중복이면 알림 스킵
+  - 새 알림만 캐시 등록 후 경고 표시
+
+### Technical Details
+- 영향 범위: ScamDetectionAccessibilityService 알림 로직
+- 메모리: ~10KB 미만 (50개 캐시 항목)
+- DB 변경 없음 (메모리 캐시만 사용)
+
+### Test Scenarios
+1. 스크롤 중복 방지: 10초 내 같은 키워드 → 알림 1회만
+2. 새 메시지 탐지: 10초 후 같은 내용 새 메시지 → 정상 탐지
+3. 다른 키워드: 10초 내 다른 스캠 메시지 → 별도 알림
+
+---
+
 ## [0.2.5] - 2026-02-03
 
 ### Fixed

@@ -72,6 +72,10 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
     private var debounceJob: Job? = null
     private var lastProcessedText: WeakReference<String>? = null
 
+    // 스크롤 중복 알림 방지용 세션 캐시
+    // Key: "앱패키지:정렬된키워드목록", Value: 마지막 알림 시각(ms)
+    private val recentAlertCache = mutableMapOf<String, Long>()
+
     companion object {
         private const val TAG = "ScamDetectionService"
 
@@ -94,6 +98,20 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         // - 0.7 이상: 미탐 증가 (실제 스캠 놓침)
         // - KeywordMatcher와 연동: CRITICAL 2개 조합(0.8) 또는 CRITICAL+HIGH(0.65)
         private const val SCAM_THRESHOLD = 0.5f
+
+        // ========== 스크롤 중복 알림 방지 설정 ==========
+
+        // 스크롤 중복 방지용 짧은 윈도우 (10초)
+        // - 10초 이내 같은 키워드 조합 → 스크롤로 간주, 알림 무시
+        // - 10초 이후 같은 키워드 조합 → 새 메시지로 간주, 알림 표시
+        // - 너무 짧으면(3초) 빠른 스크롤 후 새 메시지 놓침
+        // - 너무 길면(60초) 실제 새 스캠 메시지 놓침
+        private const val SCROLL_DUPLICATE_WINDOW_MS = 10_000L
+
+        // 캐시 최대 크기 (메모리 관리)
+        // - 50개 초과 시 가장 오래된 항목 제거
+        // - 메모리 사용량: ~50 * (문자열 키 + Long) ≈ 10KB 미만
+        private const val CACHE_MAX_SIZE = 50
 
         // ========== 노드 필터링 설정 (False Positive 방지) ==========
 
@@ -347,6 +365,61 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         return ACCESSIBILITY_LABEL_PATTERNS.any { lowerText.contains(it) }
     }
 
+    // ========== 스크롤 중복 알림 방지 함수 ==========
+
+    /**
+     * 캐시 키 생성: 앱 + 탐지된 키워드 조합
+     *
+     * 전체 텍스트 대신 키워드만 사용하는 이유:
+     * - 스크롤 시 화면에 보이는 텍스트가 달라져도 같은 스캠 메시지면 같은 키워드 탐지
+     * - "급전 필요" 메시지가 다른 컨텍스트에서 보여도 동일 키로 인식
+     *
+     * @param detectedKeywords 탐지된 키워드 목록
+     * @param sourceApp 출처 앱 패키지명
+     * @return "앱패키지:키워드1,키워드2,..." 형식의 캐시 키
+     */
+    private fun generateAlertCacheKey(
+        detectedKeywords: List<String>,
+        sourceApp: String
+    ): String {
+        val sortedKeywords = detectedKeywords.sorted().joinToString(",")
+        return "$sourceApp:$sortedKeywords"
+    }
+
+    /**
+     * 최근 알림 여부 확인 (스크롤 중복 방지)
+     *
+     * @param cacheKey 캐시 키
+     * @return true if same keywords were alerted within SCROLL_DUPLICATE_WINDOW_MS
+     */
+    private fun isRecentlyAlerted(cacheKey: String): Boolean {
+        val lastAlertTime = recentAlertCache[cacheKey] ?: return false
+        val elapsed = System.currentTimeMillis() - lastAlertTime
+        return elapsed < SCROLL_DUPLICATE_WINDOW_MS
+    }
+
+    /**
+     * 캐시에 알림 등록 (오래된 항목 정리 포함)
+     *
+     * @param cacheKey 캐시 키
+     */
+    private fun registerAlert(cacheKey: String) {
+        val now = System.currentTimeMillis()
+
+        // 오래된 캐시 정리 (SCROLL_DUPLICATE_WINDOW_MS 이상 지난 항목)
+        recentAlertCache.entries.removeIf { (_, time) ->
+            now - time > SCROLL_DUPLICATE_WINDOW_MS
+        }
+
+        // 캐시 크기 제한 (가장 오래된 항목 제거)
+        if (recentAlertCache.size >= CACHE_MAX_SIZE) {
+            val oldest = recentAlertCache.minByOrNull { it.value }?.key
+            oldest?.let { recentAlertCache.remove(it) }
+        }
+
+        recentAlertCache[cacheKey] = now
+    }
+
     private fun analyzeForScam(text: String, sourceApp: String) {
         serviceScope.launch {
             try {
@@ -356,6 +429,21 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
 
                 // isScam이 이미 threshold 체크를 포함하므로 중복 조건 제거
                 if (analysis.isScam) {
+                    // 1. 캐시 키 생성 (앱 + 탐지된 키워드 조합)
+                    val cacheKey = generateAlertCacheKey(
+                        analysis.detectedKeywords,
+                        sourceApp
+                    )
+
+                    // 2. 스크롤 중복 체크 (10초 이내 같은 키워드면 무시)
+                    if (isRecentlyAlerted(cacheKey)) {
+                        Log.d(TAG, "Skipping duplicate alert (scroll detected): $cacheKey")
+                        return@launch
+                    }
+
+                    // 3. 캐시에 등록 후 경고 표시
+                    registerAlert(cacheKey)
+                    Log.i(TAG, "New scam alert registered: $cacheKey")
                     showScamWarning(analysis, sourceApp)
                 }
 
