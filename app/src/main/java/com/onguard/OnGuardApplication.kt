@@ -71,8 +71,12 @@ class OnGuardApplication : Application(), Configuration.Provider {
             try {
                 Log.d(TAG, "=== Starting LLM initialization in background ===")
                 
-                // 약간의 지연을 주어 앱 시작 안정화
-                kotlinx.coroutines.delay(500)
+                // 앱 시작 안정화 + 다른 초기화(WorkManager 등) 완료 후 메모리 여유 확보
+                kotlinx.coroutines.delay(1500)
+                
+                // LLM 로드 전 가비지 컬렉션으로 사용 가능 메모리 확보 (저사양 기기 대응)
+                System.gc()
+                kotlinx.coroutines.delay(200)
                 
                 val success = hybridScamDetector.initializeLLM()
 

@@ -26,6 +26,11 @@ app/src/main/assets/models/
 └── gemma3-270m-it-q8.task            # Gemma 모델 (모바일용, 직접 다운로드)
 ```
 
+## 저사양 기기 (S10e, 8GB RAM 등)
+
+앱은 **largeHeap** 요청, LLM 초기화 지연, **MAX_TOKENS/TOP_K 축소**로 저사양 기기에서도 LLM 로드를 시도합니다.  
+그래도 메모리 부족으로 크래시되면 LLM은 비활성화되고 Rule-based 탐지만 사용됩니다 (앱은 정상 동작).
+
 ## 모델 없이 실행하기
 
 **모델 파일이 없어도 앱은 정상 작동합니다!**

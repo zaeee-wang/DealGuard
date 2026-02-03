@@ -33,9 +33,13 @@ class LLMScamDetector @Inject constructor(
         private const val TAG = "LLMScamDetector"
         /** assets 내 모델 상대 경로 (MediaPipe .task 형식, 모바일용) */
         private const val MODEL_PATH = "models/gemma3-270m-it-q8.task"
-        private const val MAX_TOKENS = 256
+        /** 저사양 기기(S10e 등) 메모리 절감: 출력 토큰 상한 축소 → KV 캐시 감소 */
+        private const val MAX_TOKENS = 128
         private const val TEMPERATURE = 0.7f
-        private const val TOP_K = 40
+        /** 샘플링 후보 수 축소 → 메모리·연산 절감 */
+        private const val TOP_K = 32
+        /** 저사양 기기: LLM 입력 길이 상한 (토큰/메모리 절감) */
+        private const val MAX_INPUT_CHARS = 1500
     }
 
     /**
@@ -199,6 +203,9 @@ class LLMScamDetector @Inject constructor(
             
             Log.d(TAG, "MediaPipe options created successfully")
 
+            // LLM 로드 직전 메모리 확보 (저사양 기기 대응)
+            System.gc()
+            
             // MediaPipe LLM 인스턴스 생성 (여기서 크래시 가능)
             Log.d(TAG, "=== Creating LlmInference Instance ===")
             Log.d(TAG, "  - Context: ${context.javaClass.simpleName}")
@@ -292,8 +299,12 @@ class LLMScamDetector @Inject constructor(
      * @return [ScamAnalysis] 분석 결과. 모델 미사용/빈 응답/파싱 실패 시 null
      */
     suspend fun analyze(text: String, context: LlmContext? = null): ScamAnalysis? = withContext(Dispatchers.Default) {
+        val input = if (text.length > MAX_INPUT_CHARS) {
+            Log.d(TAG, "Input truncated for LLM: ${text.length} -> $MAX_INPUT_CHARS chars")
+            text.take(MAX_INPUT_CHARS)
+        } else text
         Log.d(TAG, "=== LLM Analysis Started ===")
-        Log.d(TAG, "  - Text length: ${text.length} chars")
+        Log.d(TAG, "  - Text length: ${input.length} chars")
         Log.d(TAG, "  - Context provided: ${context != null}")
         
         if (!isAvailable()) {
@@ -303,7 +314,7 @@ class LLMScamDetector @Inject constructor(
 
         try {
             Log.d(TAG, "Building prompt...")
-            val prompt = buildPrompt(text, context)
+            val prompt = buildPrompt(input, context)
             Log.d(TAG, "  - Prompt length: ${prompt.length} chars")
             Log.v(TAG, "  - Prompt preview: ${prompt.take(200)}...")
             
