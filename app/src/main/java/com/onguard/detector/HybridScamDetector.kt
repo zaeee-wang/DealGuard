@@ -136,7 +136,26 @@ class HybridScamDetector @Inject constructor(
         ) {
             Log.d(TAG, "Triggering LLM analysis for confidence: $ruleConfidence")
 
-            val llmResult = llmScamDetector.analyze(text)
+            val llmContext = LLMScamDetector.LlmContext(
+                ruleConfidence = ruleConfidence,
+                ruleReasons = combinedReasons,
+                detectedKeywords = keywordResult.detectedKeywords,
+                urls = urlResult.urls,
+                suspiciousUrls = urlResult.suspiciousUrls,
+                urlReasons = urlResult.reasons
+            )
+
+            val llmResult = llmScamDetector.analyze(text, llmContext)
+
+            Log.d(
+                TAG,
+                "LLM result: " +
+                    if (llmResult == null) "null" else
+                        "isScam=${llmResult.isScam}, " +
+                        "confidence=${llmResult.confidence}, " +
+                        "scamType=${llmResult.scamType}, " +
+                        "reasons=${llmResult.reasons.joinToString(limit = 3)}"
+            )
 
             if (llmResult != null) {
                 return combineResults(

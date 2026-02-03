@@ -37,6 +37,27 @@ class LLMScamDetector @Inject constructor(
         private const val TOP_K = 40
     }
 
+    /**
+     * Rule 기반·URL 분석 결과 등, LLM에 전달할 추가 컨텍스트.
+     *
+     * DB(KISA 피싱 URL 등)를 이미 활용한 UrlAnalyzer/KeywordMatcher의 결과를
+     * LLM 프롬프트에 함께 담기 위해 사용한다.
+     */
+    data class LlmContext(
+        /** 규칙 기반 신뢰도 (0.0~1.0) */
+        val ruleConfidence: Float? = null,
+        /** 규칙 기반 탐지 사유 목록 */
+        val ruleReasons: List<String> = emptyList(),
+        /** 규칙 기반에서 탐지된 키워드 목록 */
+        val detectedKeywords: List<String> = emptyList(),
+        /** 텍스트에서 추출된 전체 URL 목록 */
+        val urls: List<String> = emptyList(),
+        /** UrlAnalyzer 기준으로 위험하다고 간주된 URL 목록 */
+        val suspiciousUrls: List<String> = emptyList(),
+        /** URL 관련 위험 사유 (KISA DB 매치, 무료 도메인 등) */
+        val urlReasons: List<String> = emptyList()
+    )
+
     private var llmInference: LlmInference? = null
     private val gson = Gson()
     private var isInitialized = false
@@ -102,16 +123,17 @@ class LLMScamDetector @Inject constructor(
      * 주어진 텍스트를 LLM으로 분석하여 스캠 여부와 상세 결과를 반환한다.
      *
      * @param text 분석할 채팅 메시지
+     * @param context Rule/URL 기반 1차 분석 결과 등 추가 컨텍스트 (선택)
      * @return [ScamAnalysis] 분석 결과. 모델 미사용/빈 응답/파싱 실패 시 null
      */
-    suspend fun analyze(text: String): ScamAnalysis? = withContext(Dispatchers.Default) {
+    suspend fun analyze(text: String, context: LlmContext? = null): ScamAnalysis? = withContext(Dispatchers.Default) {
         if (!isAvailable()) {
             Log.w(TAG, "LLM not available, skipping analysis")
             return@withContext null
         }
 
         try {
-            val prompt = buildPrompt(text)
+            val prompt = buildPrompt(text, context)
             val response = llmInference?.generateResponse(prompt)
 
             if (response.isNullOrBlank()) {
@@ -130,11 +152,57 @@ class LLMScamDetector @Inject constructor(
      * 스캠 탐지용 시스템 프롬프트와 사용자 메시지를 조합한 프롬프트를 생성한다.
      *
      * @param text 분석 대상 채팅 메시지
+     * @param context Rule 기반·URL 분석 등 추가 컨텍스트
      * @return JSON만 출력하도록 지시한 프롬프트 문자열
      */
-    private fun buildPrompt(text: String): String {
+    private fun buildPrompt(text: String, context: LlmContext?): String {
+        val contextBlock = buildString {
+            if (context == null) return@buildString
+
+            if (context.ruleConfidence != null || context.ruleReasons.isNotEmpty() || context.detectedKeywords.isNotEmpty()) {
+                appendLine("[Rule-based 1차 분석 요약]")
+                context.ruleConfidence?.let {
+                    appendLine("- rule_confidence: $it")
+                }
+                if (context.detectedKeywords.isNotEmpty()) {
+                    appendLine("- detected_keywords: ${context.detectedKeywords.joinToString()}")
+                }
+                if (context.ruleReasons.isNotEmpty()) {
+                    appendLine("- rule_reasons:")
+                    context.ruleReasons.forEach { reason ->
+                        appendLine("  - $reason")
+                    }
+                }
+                appendLine()
+            }
+
+            if (context.urls.isNotEmpty() || context.suspiciousUrls.isNotEmpty() || context.urlReasons.isNotEmpty()) {
+                appendLine("[URL/DB 기반 분석 요약]")
+                if (context.urls.isNotEmpty()) {
+                    appendLine("- urls: ${context.urls.joinToString()}")
+                }
+                if (context.suspiciousUrls.isNotEmpty()) {
+                    appendLine("- suspicious_urls: ${context.suspiciousUrls.joinToString()}")
+                }
+                if (context.urlReasons.isNotEmpty()) {
+                    appendLine("- url_reasons:")
+                    context.urlReasons.forEach { reason ->
+                        appendLine("  - $reason")
+                    }
+                }
+            }
+        }.trimEnd()
+
         return """
 당신은 사기 탐지 전문가입니다. 다음 메시지를 분석하고 JSON 형식으로만 응답하세요.
+
+[배경 정보]
+- 먼저 규칙 기반 분석기와 URL 분석기가 1차로 메시지를 평가했습니다.
+- 아래 [Rule-based 1차 분석 요약]과 [URL/DB 기반 분석 요약]을 참고하여 최종 판단을 내려주세요.
+- KISA 피싱사이트 DB 등록 URL 등은 매우 강한 스캠 신호입니다.
+
+[Rule-based 1차 분석 요약과 URL/DB 기반 분석 요약은 없을 수도 있습니다]
+${if (contextBlock.isNotBlank()) contextBlock else "(제공된 사전 분석 정보 없음)"}
 
 [탐지 대상]
 1. 투자 사기: 고수익 보장, 원금 보장, 긴급 투자 권유, 비공개 정보 제공, 코인/주식 리딩방
