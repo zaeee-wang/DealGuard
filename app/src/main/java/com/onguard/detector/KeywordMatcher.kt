@@ -278,7 +278,7 @@ class KeywordMatcher @Inject constructor() {
         val finalConfidence = totalConfidence.coerceIn(0f, 1f)
 
         return ScamAnalysis(
-            isScam = finalConfidence > 0.5f,
+            isScam = finalConfidence >= 0.5f,
             confidence = finalConfidence,
             reasons = reasons,
             detectedKeywords = allDetectedKeywords,

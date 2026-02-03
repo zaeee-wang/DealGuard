@@ -4,6 +4,44 @@
 
 ---
 
+## [0.2.5] - 2026-02-03
+
+### Fixed
+- **스캠 미탐지 버그 수정 (False Negative)** (P0 Critical)
+  - 증상: "급전 필요합니다 송금해주세요" 등 스캠 메시지가 탐지되지 않음
+  - 근본 원인: 임계값 조건이 `> 0.5f`로 설정되어 정확히 0.5f인 경우 통과하지 못함
+  - 예시: "급전"(0.25f) + "송금"(0.25f) = 0.5f → isScam = false (버그)
+
+#### KeywordMatcher.kt
+- 임계값 조건 수정: `> 0.5f` → `>= 0.5f`
+  - 정확히 0.5f 신뢰도도 스캠으로 판정
+
+#### ScamDetectionAccessibilityService.kt
+- 중복 임계값 체크 제거
+  - 기존: `if (analysis.isScam && analysis.confidence >= SCAM_THRESHOLD)`
+  - 수정: `if (analysis.isScam)` (isScam이 이미 threshold 포함)
+- `rootInActiveWindow` null 재시도 로직 추가
+  - 최대 3회 재시도 (50ms 간격)
+  - 윈도우 로딩 지연으로 인한 이벤트 손실 방지
+
+#### OverlayService.kt
+- `Settings.canDrawOverlays()` 권한 체크 추가
+  - 오버레이 권한 없을 시 조기 종료 및 로그 출력
+  - 조용한 실패 방지
+
+### Added
+- **KeywordMatcherTest.kt 테스트 추가**
+  - `정확히 0점5 신뢰도는 스캠으로 판정` 테스트
+  - `0점49 신뢰도는 스캠 아님` 테스트
+  - `대소문자 구분 없이 탐지` 테스트 수정 (0.5f 경계값 스캠 판정)
+
+### Technical Details
+- 영향 범위: 전체 스캠 탐지 파이프라인
+- 근본 원인: 임계값 경계 조건 오류
+- 테스트: 0.5f 경계값 테스트 추가
+
+---
+
 ## [0.2.4] - 2026-01-31
 
 ### Changed
@@ -191,4 +229,4 @@
 ---
 
 *Maintained by Backend Team*
-*Last Updated: 2026-01-31*
+*Last Updated: 2026-02-03*

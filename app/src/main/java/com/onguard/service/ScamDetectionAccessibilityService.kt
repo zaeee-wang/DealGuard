@@ -157,7 +157,24 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         debounceJob = serviceScope.launch {
             delay(DEBOUNCE_DELAY_MS)
 
-            val node = rootInActiveWindow ?: return@launch
+            // rootInActiveWindow null 재시도 로직
+            // 윈도우가 완전히 로드되지 않았을 때 null 반환 가능
+            var node: AccessibilityNodeInfo? = null
+            var retryCount = 0
+            val maxRetries = 3
+
+            while (node == null && retryCount < maxRetries) {
+                node = rootInActiveWindow
+                if (node == null) {
+                    retryCount++
+                    delay(50)  // 50ms 대기 후 재시도
+                }
+            }
+
+            if (node == null) {
+                Log.w(TAG, "rootInActiveWindow is null after $maxRetries retries")
+                return@launch
+            }
 
             try {
                 val extractedText = extractTextFromNode(node)
@@ -333,7 +350,8 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
 
                 Log.d(TAG, "Analysis result - isScam: ${analysis.isScam}, confidence: ${analysis.confidence}")
 
-                if (analysis.isScam && analysis.confidence >= SCAM_THRESHOLD) {
+                // isScam이 이미 threshold 체크를 포함하므로 중복 조건 제거
+                if (analysis.isScam) {
                     showScamWarning(analysis, sourceApp)
                 }
 

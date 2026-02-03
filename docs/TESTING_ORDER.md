@@ -8,13 +8,13 @@
 
 1. **프로젝트 가져오기**
    ```bash
-   git clone -b Ai https://github.com/jhparktime/DealGuard.git
+   git clone -b Backend https://github.com/jhparktime/DealGuard.git
    cd DealGuard
    ```
-   (이미 클론했다면 `git pull origin Ai`)
+   (이미 클론했다면 `git pull origin Backend`)
 
 2. **Android Studio에서 열기**
-   - **File → Open** → `DealGuard` 폴더 선택
+   - **File → Open** → `OnGuard` 폴더 선택
 
 3. **Gradle 동기화**
    - **File → Sync Project with Gradle Files** (또는 코끼리 아이콘)
@@ -61,7 +61,7 @@
 ## 4. 단위 테스트 (로컬)
 
 1. **Android Studio**
-   - 오른쪽 **Gradle** 패널 → **DealGuard → app → Tasks → verification → test** 더블클릭
+   - 오른쪽 **Gradle** 패널 → **OnGuard → app → Tasks → verification → test** 더블클릭
 
 2. **터미널 (Gradle 사용 가능할 때)**
    ```bash

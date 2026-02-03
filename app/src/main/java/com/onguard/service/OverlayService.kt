@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -74,6 +75,13 @@ class OverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 오버레이 권한 체크
+        if (!Settings.canDrawOverlays(this)) {
+            Log.e(TAG, "Overlay permission not granted - cannot show warning")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         // Intent에서 데이터 추출
         val confidence = intent?.getFloatExtra(EXTRA_CONFIDENCE, 0.5f) ?: 0.5f
         val reasonsRaw = intent?.getStringExtra(EXTRA_REASONS) ?: "스캠 의심"
