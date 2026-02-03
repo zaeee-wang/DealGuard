@@ -284,10 +284,37 @@ class OverlayService : Service() {
             windowManager?.addView(overlayView, params)
             Log.i(TAG, "=== Overlay view added successfully ===")
             Log.i(TAG, "  - View should now be visible on screen")
+            
+            // 오버레이 뷰 상태 확인
+            overlayView?.let { view ->
+                view.post {
+                    Log.d(TAG, "=== Overlay view state check ===")
+                    Log.d(TAG, "  - Visibility: ${view.visibility}")
+                    Log.d(TAG, "  - Width: ${view.width}px")
+                    Log.d(TAG, "  - Height: ${view.height}px")
+                    Log.d(TAG, "  - Alpha: ${view.alpha}")
+                    Log.d(TAG, "  - Background: ${view.background != null}")
+                    Log.d(TAG, "  - X position: ${view.x}")
+                    Log.d(TAG, "  - Y position: ${view.y}")
+                    Log.d(TAG, "  - Is attached: ${view.isAttachedToWindow}")
+                    
+                    // 뷰의 실제 표시 여부 확인
+                    val isVisible = view.visibility == View.VISIBLE && 
+                                   view.width > 0 && 
+                                   view.height > 0 &&
+                                   view.alpha > 0f
+                    Log.i(TAG, "  - Is actually visible: $isVisible")
+                    
+                    if (!isVisible) {
+                        Log.w(TAG, "WARNING: Overlay view added but may not be visible!")
+                        Log.w(TAG, "  - Check overlay permission, view size, and position")
+                    }
+                }
+            }
 
             // Auto-dismiss after delay
             handler.postDelayed({
-                Log.d(TAG, "Auto-dismissing overlay after $AUTO_DISMISS_DELAY ms")
+                Log.d(TAG, "=== Auto-dismissing overlay after $AUTO_DISMISS_DELAY ms ===")
                 removeOverlay()
                 stopSelf()
             }, AUTO_DISMISS_DELAY)
@@ -401,6 +428,8 @@ class OverlayService : Service() {
     }
 
     private fun removeOverlay() {
+        Log.d(TAG, "=== removeOverlay() called ===")
+        Log.d(TAG, "  - Overlay view exists: ${overlayView != null}")
         overlayView?.let {
             try {
                 windowManager?.removeView(it)
