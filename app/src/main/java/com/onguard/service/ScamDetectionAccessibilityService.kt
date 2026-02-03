@@ -219,6 +219,12 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             }
 
             try {
+                // 채팅방 내부인지 확인 (목록 화면이면 스킵)
+                if (!isInsideChatRoom(node)) {
+                    Log.d(TAG, "Not inside chat room (no input field) - skipping")
+                    return@launch
+                }
+
                 val extractedText = extractTextFromNode(node)
 
                 // 최소 길이 체크
@@ -383,6 +389,72 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
     private fun isAccessibilityLabel(text: CharSequence): Boolean {
         val lowerText = text.toString().lowercase()
         return ACCESSIBILITY_LABEL_PATTERNS.any { lowerText.contains(it) }
+    }
+
+    // ========== 채팅방 내부 감지 (목록 화면 제외) ==========
+
+    /**
+     * 현재 화면이 채팅방 내부인지 확인
+     *
+     * 채팅방 내부에는 메시지 입력 필드(EditText)가 존재하지만,
+     * 채팅 목록 화면에는 입력 필드가 없음. 이를 활용하여 구분.
+     *
+     * @param rootNode 루트 노드
+     * @return true if inside a chat room (has input field)
+     */
+    private fun isInsideChatRoom(rootNode: AccessibilityNodeInfo): Boolean {
+        return hasMessageInputField(rootNode)
+    }
+
+    /**
+     * 메시지 입력 필드 존재 여부 확인 (재귀 탐색)
+     *
+     * EditText, 편집 가능 노드, 또는 입력 관련 리소스 ID가 있으면 true
+     */
+    private fun hasMessageInputField(node: AccessibilityNodeInfo, depth: Int = 0): Boolean {
+        // 최대 탐색 깊이 제한 (성능)
+        if (depth > 15) return false
+
+        // 1. 편집 가능한 노드 발견 → 채팅방 내부
+        if (node.isEditable) {
+            Log.d(TAG, "Found editable node - inside chat room")
+            return true
+        }
+
+        // 2. 입력 관련 클래스 확인
+        val className = node.className?.toString() ?: ""
+        if (className.contains("EditText", ignoreCase = true)) {
+            Log.d(TAG, "Found EditText class - inside chat room")
+            return true
+        }
+
+        // 3. 입력 관련 리소스 ID 확인
+        val resourceId = node.viewIdResourceName ?: ""
+        val inputPatterns = setOf(
+            "input", "edit", "compose", "message_input", "chat_input",
+            "text_input", "send_text", "write", "reply"
+        )
+        if (resourceId.isNotEmpty() && inputPatterns.any {
+            resourceId.contains(it, ignoreCase = true)
+        }) {
+            Log.d(TAG, "Found input resource ID: $resourceId - inside chat room")
+            return true
+        }
+
+        // 4. 자식 노드 재귀 탐색
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { child ->
+                try {
+                    if (hasMessageInputField(child, depth + 1)) {
+                        return true
+                    }
+                } finally {
+                    child.recycle()
+                }
+            }
+        }
+
+        return false
     }
 
     // ========== 스크롤 중복 알림 방지 함수 ==========

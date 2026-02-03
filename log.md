@@ -4,6 +4,41 @@
 
 ---
 
+## [0.2.8] - 2026-02-03
+
+### Added
+- **채팅방 내부에서만 탐지** (P1 UX)
+  - 증상: 채팅 목록 화면에서도 메시지 미리보기가 스캠으로 탐지됨
+  - 해결: 메시지 입력 필드(EditText) 존재 여부로 채팅방 내부 판별
+
+#### ScamDetectionAccessibilityService.kt
+- **새 함수 추가**
+  - `isInsideChatRoom()`: 채팅방 내부인지 확인
+  - `hasMessageInputField()`: 재귀적으로 EditText/입력 필드 탐색
+- **processEvent() 수정**
+  - 채팅방 내부가 아니면 탐지 스킵 (채팅 목록, 설정 화면 등)
+- **탐지 로직**
+  - `node.isEditable` 또는 "EditText" 클래스 → 채팅방
+  - 리소스 ID에 input/edit/compose/message 등 포함 → 채팅방
+  - 최대 탐색 깊이 15 (성능 보호)
+
+### Technical Details
+- 동작 원리:
+  1. `rootInActiveWindow` 노드 획득
+  2. `hasMessageInputField()`로 입력 필드 탐색 (깊이 15 제한)
+  3. EditText 발견 → 채팅방 내부로 판정, 탐지 진행
+  4. EditText 없음 → 채팅 목록/설정으로 판정, 스킵
+- 지원 앱: 카카오톡, 텔레그램, 당근마켓, SMS 등 (입력 필드 기반)
+- 성능: 추가 탐색 오버헤드 최소화 (isEditable 빠른 체크)
+
+### Test Scenarios
+1. 채팅 목록: 카카오톡 목록 화면 → 탐지 안 함 ✓
+2. 채팅방 내부: 대화 화면 진입 → 정상 탐지 ✓
+3. 설정 화면: 앱 설정 → 탐지 안 함 ✓
+4. SMS: 메시지 앱 대화 화면 → 정상 탐지 ✓
+
+---
+
 ## [0.2.7] - 2026-02-03
 
 ### Improved
@@ -304,4 +339,4 @@
 ---
 
 *Maintained by Backend Team*
-*Last Updated: 2026-02-03*
+*Last Updated: 2026-02-03 (v0.2.8)*
