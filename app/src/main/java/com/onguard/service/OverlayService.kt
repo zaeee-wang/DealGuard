@@ -70,19 +70,32 @@ class OverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "=== OverlayService.onCreate ===")
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        Log.d(TAG, "  - WindowManager obtained: ${windowManager != null}")
         createNotificationChannel()
+        Log.d(TAG, "OverlayService created successfully")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "=== OverlayService.onStartCommand called ===")
+        Log.d(TAG, "  - Intent: ${intent != null}")
+        Log.d(TAG, "  - Flags: $flags")
+        Log.d(TAG, "  - StartId: $startId")
+        
         // 오버레이 권한 체크
-        if (!Settings.canDrawOverlays(this)) {
-            Log.e(TAG, "Overlay permission not granted - cannot show warning")
+        val hasOverlayPermission = Settings.canDrawOverlays(this)
+        Log.d(TAG, "  - Overlay permission: $hasOverlayPermission")
+        
+        if (!hasOverlayPermission) {
+            Log.e(TAG, "=== Overlay permission not granted - cannot show warning ===")
+            Log.e(TAG, "Please enable 'Display over other apps' permission in Settings")
             stopSelf()
             return START_NOT_STICKY
         }
 
         // Intent에서 데이터 추출
+        Log.d(TAG, "Extracting data from intent...")
         val confidence = intent?.getFloatExtra(EXTRA_CONFIDENCE, 0.5f) ?: 0.5f
         val reasonsRaw = intent?.getStringExtra(EXTRA_REASONS) ?: "스캠 의심"
         val sourceApp = intent?.getStringExtra(EXTRA_SOURCE_APP) ?: "Unknown"
@@ -90,6 +103,15 @@ class OverlayService : Service() {
         val scamTypeStr = intent?.getStringExtra(EXTRA_SCAM_TYPE) ?: "UNKNOWN"
         val suspiciousParts = intent?.getStringArrayListExtra(EXTRA_SUSPICIOUS_PARTS) ?: arrayListOf()
         val detectedKeywords = intent?.getStringArrayListExtra(EXTRA_DETECTED_KEYWORDS) ?: arrayListOf()
+        
+        Log.d(TAG, "Extracted data:")
+        Log.d(TAG, "  - Confidence: $confidence")
+        Log.d(TAG, "  - Reasons: $reasonsRaw")
+        Log.d(TAG, "  - Source app: $sourceApp")
+        Log.d(TAG, "  - Warning message: $warningMessage")
+        Log.d(TAG, "  - Scam type: $scamTypeStr")
+        Log.d(TAG, "  - Suspicious parts: $suspiciousParts")
+        Log.d(TAG, "  - Detected keywords: $detectedKeywords")
 
         // String을 List로 변환 (기존 호환성)
         val reasons = if (reasonsRaw.contains(",")) {
@@ -143,12 +165,34 @@ class OverlayService : Service() {
         scamType: ScamType,
         suspiciousParts: List<String>
     ) {
+        Log.d(TAG, "=== showOverlayWarning called ===")
+        Log.d(TAG, "  - Confidence: $confidence")
+        Log.d(TAG, "  - Reasons count: ${reasons.size}")
+        Log.d(TAG, "  - Source app: $sourceApp")
+        Log.d(TAG, "  - Warning message: $warningMessage")
+        Log.d(TAG, "  - Scam type: $scamType")
+        Log.d(TAG, "  - Suspicious parts: $suspiciousParts")
+        
         // Remove existing overlay if any
+        Log.d(TAG, "Removing existing overlay if any...")
         removeOverlay()
 
         // Create overlay view
+        Log.d(TAG, "Creating overlay view from layout...")
         val inflater = LayoutInflater.from(this)
-        overlayView = inflater.inflate(R.layout.overlay_scam_warning, null)
+        overlayView = try {
+            inflater.inflate(R.layout.overlay_scam_warning, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to inflate overlay layout", e)
+            null
+        }
+        
+        if (overlayView == null) {
+            Log.e(TAG, "Overlay view is null after inflation - cannot show warning")
+            return
+        }
+        
+        Log.d(TAG, "Overlay view created successfully")
 
         // 신뢰도별 배경색 (Material Design 색상)
         // - 90% 이상: 빨강 (#D32F2F) - 거의 확정적 스캠, 즉시 주의 필요

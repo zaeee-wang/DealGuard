@@ -536,12 +536,24 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
     private fun analyzeForScam(text: String, sourceApp: String) {
         serviceScope.launch {
             try {
+                Log.d(TAG, "=== Starting scam analysis ===")
+                Log.d(TAG, "  - Text length: ${text.length} chars")
+                Log.d(TAG, "  - Source app: $sourceApp")
+                Log.v(TAG, "  - Text preview: ${text.take(100)}...")
+                
                 val analysis = scamDetector.analyze(text)
 
-                Log.d(TAG, "Analysis result - isScam: ${analysis.isScam}, confidence: ${analysis.confidence}")
+                Log.d(TAG, "=== Analysis result ===")
+                Log.d(TAG, "  - isScam: ${analysis.isScam}")
+                Log.d(TAG, "  - confidence: ${analysis.confidence}")
+                Log.d(TAG, "  - reasons: ${analysis.reasons}")
+                Log.d(TAG, "  - detectedKeywords: ${analysis.detectedKeywords}")
+                Log.d(TAG, "  - scamType: ${analysis.scamType}")
+                Log.d(TAG, "  - detectionMethod: ${analysis.detectionMethod}")
 
                 // isScam이 이미 threshold 체크를 포함하므로 중복 조건 제거
                 if (analysis.isScam) {
+                    Log.i(TAG, "=== SCAM DETECTED - Processing alert ===")
                     // 1. 캐시 키 생성 (앱 + 탐지된 키워드 조합)
                     val cacheKey = generateAlertCacheKey(
                         analysis.detectedKeywords,
@@ -592,9 +604,14 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
     private fun showScamWarning(analysis: ScamAnalysis, sourceApp: String) {
         handler.post {
             try {
-                Log.w(TAG, "SCAM DETECTED! Type: ${analysis.scamType}, Confidence: ${analysis.confidence}")
-                Log.d(TAG, "Warning message: ${analysis.warningMessage}")
-                Log.d(TAG, "Reasons: ${analysis.reasons}")
+                Log.w(TAG, "=== SCAM DETECTED - Preparing overlay ===")
+                Log.w(TAG, "  - Type: ${analysis.scamType}")
+                Log.w(TAG, "  - Confidence: ${analysis.confidence}")
+                Log.w(TAG, "  - Warning message: ${analysis.warningMessage}")
+                Log.w(TAG, "  - Reasons: ${analysis.reasons}")
+                Log.w(TAG, "  - Suspicious parts: ${analysis.suspiciousParts}")
+                Log.w(TAG, "  - Detected keywords: ${analysis.detectedKeywords}")
+                Log.w(TAG, "  - Source app: $sourceApp")
 
                 // OverlayService 시작 (새 필드 포함)
                 val intent = Intent(this, OverlayService::class.java).apply {
@@ -614,10 +631,22 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                         ArrayList(analysis.detectedKeywords)
                     )
                 }
-                startService(intent)
+                
+                Log.d(TAG, "Starting OverlayService with intent...")
+                val result = startService(intent)
+                Log.d(TAG, "startService() returned: $result")
+                
+                if (result == null) {
+                    Log.e(TAG, "startService() returned null - service may not be started")
+                } else {
+                    Log.i(TAG, "OverlayService started successfully")
+                }
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error showing scam warning", e)
+                Log.e(TAG, "=== Error showing scam warning ===", e)
+                Log.e(TAG, "  - Exception type: ${e.javaClass.name}")
+                Log.e(TAG, "  - Exception message: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
