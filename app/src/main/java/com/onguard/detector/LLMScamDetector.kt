@@ -289,6 +289,17 @@ class LLMScamDetector @Inject constructor(
             val prompt = buildPrompt(input, context)
             Log.d(TAG, "  - Prompt length: ${prompt.length} chars")
             Log.v(TAG, "  - Prompt preview: ${prompt.take(200)}...")
+
+            // 1단계: 토크나이저를 통해 프롬프트를 토큰 ID로 변환 (인코더 경로 검증용)
+            try {
+                val tokenizer = SmolLmTokenizer(context)
+                val promptIds = tokenizer.encode(prompt, addBosEos = true)
+                Log.d(TAG, "Encoded prompt to token ids (SmolLM2)")
+                Log.d(TAG, "  - Token count: ${promptIds.size}")
+                Log.d(TAG, "  - Ids preview: ${promptIds.take(16)}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to encode prompt with SmolLmTokenizer", e)
+            }
             
             Log.d(TAG, "Generating LLM response (SIMULATED, ONNX TODO)...")
 
