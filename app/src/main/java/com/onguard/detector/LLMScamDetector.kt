@@ -10,6 +10,7 @@ import com.google.gson.annotations.SerializedName
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.NodeInfo
+import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.TensorInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -290,57 +291,159 @@ class LLMScamDetector @Inject constructor(
             Log.d(TAG, "  - Prompt length: ${prompt.length} chars")
             Log.v(TAG, "  - Prompt preview: ${prompt.take(200)}...")
 
-            // 1단계: 토크나이저를 통해 프롬프트를 토큰 ID로 변환 (인코더 경로 검증용)
+            // 1단계: 토크나이저를 통해 프롬프트를 토큰 ID로 변환
+            val tokenizer = SmolLmTokenizer(context)
+            val promptIds = tokenizer.encode(prompt, addBosEos = true)
+            Log.d(TAG, "Encoded prompt to token ids (SmolLM2)")
+            Log.d(TAG, "  - Token count: ${promptIds.size}")
+            Log.d(TAG, "  - Ids preview: ${promptIds.take(16)}")
+
+            // 2단계: ONNX 모델에 한 스텝(inference 1회) 넣어서 다음 토큰 1개만 생성
+            //  - input_ids / attention_mask / position_ids + past_key_values.*(zero 초기값)
+            //  - logits에서 마지막 토큰 위치의 argmax를 nextTokenId로 사용
+            val env = ortEnv ?: OrtEnvironment.getEnvironment()
+            val session = ortSession
+            if (session == null) {
+                Log.e(TAG, "ONNX session is null despite isAvailable() == true")
+                return@withContext null
+            }
+
+            val seqLen = promptIds.size
+            if (seqLen == 0) {
+                Log.w(TAG, "Prompt token sequence is empty, skipping LLM inference")
+                return@withContext null
+            }
+
+            // [1, seqLen] 형태의 Long 텐서들 생성
+            val inputIds2d = arrayOf(promptIds)
+            val attentionMask1d = LongArray(seqLen) { 1L }
+            val attentionMask2d = arrayOf(attentionMask1d)
+            val positionIds1d = LongArray(seqLen) { idx -> idx.toLong() }
+            val positionIds2d = arrayOf(positionIds1d)
+
+            val inputs = mutableMapOf<String, OnnxTensor>()
+
             try {
-                val tokenizer = SmolLmTokenizer(context)
-                val promptIds = tokenizer.encode(prompt, addBosEos = true)
-                Log.d(TAG, "Encoded prompt to token ids (SmolLM2)")
-                Log.d(TAG, "  - Token count: ${promptIds.size}")
-                Log.d(TAG, "  - Ids preview: ${promptIds.take(16)}")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to encode prompt with SmolLmTokenizer", e)
-            }
-            
-            Log.d(TAG, "Generating LLM response (SIMULATED, ONNX TODO)...")
+                inputs["input_ids"] = OnnxTensor.createTensor(env, inputIds2d)
+                inputs["attention_mask"] = OnnxTensor.createTensor(env, attentionMask2d)
+                inputs["position_ids"] = OnnxTensor.createTensor(env, positionIds2d)
 
-            // TODO: SmolLM2 ONNX 모델의 입력/출력 시그니처에 맞게
-            // 토크나이저 및 디코딩 루프를 구현해야 한다.
-            // 현재는 개발 단계이므로, Rule/URL 컨텍스트를 기반으로
-            // LLM 응답 JSON을 임시로 생성하여 전체 파이프라인(알림 표시)을 검증한다.
+                // past_key_values.* : 첫 스텝에서는 0으로 채운 작은 캐시를 사용
+                // shape: [1, 3, pastSeqLen, 64]  (pastSeqLen은 1로 설정)
+                val numLayers = 30
+                val numHeads = 3
+                val pastSeqLen = 1
+                val headDim = 64
+                val pastShape = longArrayOf(1L, numHeads.toLong(), pastSeqLen.toLong(), headDim.toLong())
+                val pastSize = pastShape.fold(1L) { acc, v -> acc * v }.toInt()
 
-            val baseConfidence = (context?.ruleConfidence ?: 0.5f).coerceIn(0f, 1f)
-            val isScam = baseConfidence > 0.5f
-            val scamType = when {
-                context?.ruleReasons?.any { it.contains("투자") || it.contains("수익") || it.contains("코인") || it.contains("주식") } == true ->
-                    "투자사기"
-                context?.ruleReasons?.any { it.contains("중고") || it.contains("입금") || it.contains("선결제") || it.contains("거래") } == true ->
-                    "중고거래사기"
-                context?.urls?.isNotEmpty() == true || context?.suspiciousUrls?.isNotEmpty() == true ->
-                    "피싱"
-                else -> if (isScam) "사기" else "정상"
-            }
+                for (layer in 0 until numLayers) {
+                    val keyName = "past_key_values.$layer.key"
+                    val valueName = "past_key_values.$layer.value"
 
-            val reasons = buildList {
-                addAll(context?.ruleReasons?.take(5) ?: emptyList())
-                if (context?.suspiciousUrls?.isNotEmpty() == true) {
-                    add("의심 URL 포함: ${context.suspiciousUrls.take(3).joinToString()}")
+                    // FLOAT16 텐서는 ShortArray로 생성 (0으로 초기화)
+                    val zeroKey = ShortArray(pastSize) { 0 }
+                    val zeroValue = ShortArray(pastSize) { 0 }
+
+                    inputs[keyName] = OnnxTensor.createTensor(env, zeroKey, pastShape)
+                    inputs[valueName] = OnnxTensor.createTensor(env, zeroValue, pastShape)
                 }
-            }
 
-            val suspiciousParts = buildList {
-                addAll(context?.detectedKeywords?.take(3) ?: emptyList())
-                if (context?.suspiciousUrls?.isNotEmpty() == true) {
-                    addAll(context.suspiciousUrls.take(2))
+                Log.d(TAG, "Running ONNX session for 1-step generation...")
+
+                val nextTokenId: Int
+                val nextTokenText: String
+
+                session.run(inputs).use { results ->
+                    val logitsTensor = results.get("logits") as? OnnxTensor
+                    if (logitsTensor == null) {
+                        Log.e(TAG, "ONNX output 'logits' is null or missing")
+                        return@withContext null
+                    }
+
+                    @Suppress("UNCHECKED_CAST")
+                    val logitsArray = logitsTensor.value as Array<Array<FloatArray>>
+                    if (logitsArray.isEmpty() || logitsArray[0].isEmpty()) {
+                        Log.e(TAG, "ONNX logits tensor is empty")
+                        return@withContext null
+                    }
+
+                    val lastLogits = logitsArray[0][logitsArray[0].size - 1]
+                    if (lastLogits.isEmpty()) {
+                        Log.e(TAG, "Last logits array is empty")
+                        return@withContext null
+                    }
+
+                    // greedy argmax
+                    var maxIdx = 0
+                    var maxVal = lastLogits[0]
+                    for (i in 1 until lastLogits.size) {
+                        val v = lastLogits[i]
+                        if (v > maxVal) {
+                            maxVal = v
+                            maxIdx = i
+                        }
+                    }
+                    nextTokenId = maxIdx
+                    nextTokenText = tokenizer.decode(longArrayOf(nextTokenId.toLong()))
+
+                    Log.d(TAG, "ONNX 1-step generation finished")
+                    Log.d(TAG, "  - nextTokenId: $nextTokenId")
+                    Log.d(TAG, "  - nextTokenText: \"$nextTokenText\"")
                 }
-            }
 
-            val warningMessage = if (isScam) {
-                "이 대화는 ${scamType} 유형으로 강하게 의심됩니다 (LLM 시뮬레이션 결과). 상대방의 요청을 바로 따르지 말고 한 번 더 확인하세요."
-            } else {
-                "현재까지는 뚜렷한 사기 패턴이 감지되지 않았습니다 (LLM 시뮬레이션 결과). 그래도 링크 클릭이나 송금 전에는 항상 주의하세요."
-            }
+                Log.d(TAG, "Generating LLM response (SIMULATED JSON, USING ONNX TOKEN)...")
 
-            val simulatedJson = """
+                // 현재는 개발 단계이므로, Rule/URL 컨텍스트 + ONNX에서 선택한 토큰 정보를
+                // 합쳐서 LLM 응답 JSON을 임시로 생성하여 전체 파이프라인(알림 표시)을 검증한다.
+
+                val baseConfidence = (context?.ruleConfidence ?: 0.5f).coerceIn(0f, 1f)
+                val isScam = baseConfidence > 0.5f
+                val scamType = when {
+                    context?.ruleReasons?.any { it.contains("투자") || it.contains("수익") || it.contains("코인") || it.contains("주식") } == true ->
+                        "투자사기"
+                    context?.ruleReasons?.any { it.contains("중고") || it.contains("입금") || it.contains("선결제") || it.contains("거래") } == true ->
+                        "중고거래사기"
+                    context?.urls?.isNotEmpty() == true || context?.suspiciousUrls?.isNotEmpty() == true ->
+                        "피싱"
+                    else -> if (isScam) "사기" else "정상"
+                }
+
+                val reasons = buildList {
+                    addAll(context?.ruleReasons?.take(5) ?: emptyList())
+                    if (context?.suspiciousUrls?.isNotEmpty() == true) {
+                        add("의심 URL 포함: ${context.suspiciousUrls.take(3).joinToString()}")
+                    }
+                    if (nextTokenText.isNotBlank()) {
+                        add("ONNX LLM이 생성한 토큰: \"$nextTokenText\" (id=$nextTokenId)")
+                    } else {
+                        add("ONNX LLM이 선택한 토큰 id: $nextTokenId")
+                    }
+                }
+
+                val suspiciousParts = buildList {
+                    addAll(context?.detectedKeywords?.take(3) ?: emptyList())
+                    if (context?.suspiciousUrls?.isNotEmpty() == true) {
+                        addAll(context.suspiciousUrls.take(2))
+                    }
+                    if (nextTokenText.isNotBlank()) {
+                        add(nextTokenText)
+                    }
+                }
+
+                val tokenSnippet = if (nextTokenText.isNotBlank()) {
+                    " (모델이 바로 다음으로 \"${nextTokenText}\" 토큰을 선택함)"
+                } else {
+                    " (모델이 다음 토큰 id=$nextTokenId 를 선택함)"
+                }
+
+                val warningMessage = if (isScam) {
+                    "이 대화는 ${scamType} 유형으로 강하게 의심됩니다 (ONNX LLM 1스텝 결과). 상대방의 요청을 바로 따르지 말고 한 번 더 확인하세요.$tokenSnippet"
+                } else {
+                    "현재까지는 뚜렷한 사기 패턴이 감지되지 않았습니다 (ONNX LLM 1스텝 결과). 그래도 링크 클릭이나 송금 전에는 항상 주의하세요.$tokenSnippet"
+                }
+
+                val simulatedJson = """
                 {
                   "isScam": $isScam,
                   "confidence": $baseConfidence,
@@ -349,23 +452,33 @@ class LLMScamDetector @Inject constructor(
                   "reasons": ${gson.toJson(reasons)},
                   "suspiciousParts": ${gson.toJson(suspiciousParts)}
                 }
-            """.trimIndent()
+                """.trimIndent()
 
-            Log.d(TAG, "Simulated LLM JSON: $simulatedJson")
+                Log.d(TAG, "Simulated LLM JSON (with ONNX token): $simulatedJson")
 
-            val result = parseResponse(simulatedJson)
-            
-            if (result == null) {
-                Log.w(TAG, "Failed to parse simulated LLM response")
-            } else {
-                Log.d(TAG, "=== LLM Analysis Success (SIMULATED) ===")
-                Log.d(TAG, "  - isScam: ${result.isScam}")
-                Log.d(TAG, "  - confidence: ${result.confidence}")
-                Log.d(TAG, "  - scamType: ${result.scamType}")
-                Log.d(TAG, "  - reasons count: ${result.reasons.size}")
+                val result = parseResponse(simulatedJson)
+
+                if (result == null) {
+                    Log.w(TAG, "Failed to parse simulated LLM response")
+                } else {
+                    Log.d(TAG, "=== LLM Analysis Success (ONNX 1-step + SIMULATED JSON) ===")
+                    Log.d(TAG, "  - isScam: ${result.isScam}")
+                    Log.d(TAG, "  - confidence: ${result.confidence}")
+                    Log.d(TAG, "  - scamType: ${result.scamType}")
+                    Log.d(TAG, "  - reasons count: ${result.reasons.size}")
+                }
+
+                result
+            } finally {
+                // 입력 텐서 리소스 정리
+                inputs.values.forEach {
+                    try {
+                        it.close()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error while closing input tensor", e)
+                    }
+                }
             }
-            
-            result
         } catch (e: Exception) {
             Log.e(TAG, "=== Error during LLM analysis ===", e)
             Log.e(TAG, "  - Exception type: ${e.javaClass.name}")
