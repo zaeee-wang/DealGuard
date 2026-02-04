@@ -12,6 +12,17 @@ android {
     namespace = "com.onguard"
     compileSdk = 34
 
+    // java-llama.cpp 서브모듈 경로
+    val jllamaLib = file("java-llama.cpp")
+
+    // 서브모듈의 native 라이브러리가 없는 경우, 한 번 mvn compile 실행
+    if (!file("$jllamaLib/target").exists()) {
+        project.exec {
+            commandLine = listOf("mvn", "compile")
+            workingDir = jllamaLib
+        }
+    }
+
     defaultConfig {
         applicationId = "com.onguard"
         minSdk = 26
@@ -24,13 +35,10 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        
+
         // 16KB page size compatibility (Android 15+)
-        // Note: MediaPipe libraries may not be fully aligned yet, but this suppresses the warning
-        // for development. Google Play requires 16KB compatibility by Nov 2025.
         ndk {
-            // This helps with 16KB page size compatibility warnings
-            // Actual fix requires MediaPipe library updates
+            // TODO: llama.cpp 빌드시 16KB 페이지 크기 대응 플래그를 맞추는 것이 이상적
         }
 
         // API Keys from local.properties
@@ -42,6 +50,14 @@ android {
 
         buildConfigField("String", "THECHEAT_API_KEY", "\"${properties.getProperty("THECHEAT_API_KEY", "")}\"")
         buildConfigField("String", "KISA_API_KEY", "\"${properties.getProperty("KISA_API_KEY", "")}\"")
+
+        externalNativeBuild {
+            cmake {
+                // java-llama.cpp C++ 빌드에 필요한 기본 설정
+                cppFlags += ""
+                arguments += listOf<String>()
+            }
+        }
     }
 
     buildTypes {
@@ -73,18 +89,26 @@ android {
         buildConfig = true
     }
 
-    // Compose compiler is now configured via the compose plugin
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
-        
-        // 16KB page size compatibility note
-        // MediaPipe native libraries may show warnings but app will still work
-        // Full compatibility requires MediaPipe library updates
         jniLibs {
             useLegacyPackaging = false
+        }
+    }
+
+    // java-llama.cpp CMake & Java 소스 연결
+    externalNativeBuild {
+        cmake {
+            path = file("$jllamaLib/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    sourceSets {
+        getByName("main") {
+            java.srcDir("$jllamaLib/src/main/java")
         }
     }
 }
@@ -131,7 +155,7 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
     implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
 
-    // ONNX Runtime (SmolLM2 ONNX용)
+    // ONNX Runtime (기존 코드 유지 - 이후 llama.cpp 완전 이행 시 제거 가능)
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
 
     // Gson
@@ -163,3 +187,4 @@ dependencies {
     implementation("androidx.savedstate:savedstate-ktx:1.2.1")
     implementation("androidx.activity:activity-compose:1.8.1")
 }
+
