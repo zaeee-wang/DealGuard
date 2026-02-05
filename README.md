@@ -140,10 +140,24 @@ Build:          Gradle Kotlin DSL
 ### 2. 프로젝트 클론
 
 ```bash
-git clone https://github.com/jhparktime/OnGuard.git
+git clone --recurse-submodules https://github.com/jhparktime/OnGuard.git
 cd OnGuard
 git checkout Ai  # AI 브랜치
 ```
+
+**다른 PC에서 빌드할 때** (java-llama.cpp Android NDK 수정 적용):
+
+서브모듈은 원격에 수정이 올라가지 않으므로, clone 후 **한 번만** 아래 패치를 적용하세요.
+
+```bash
+# macOS / Linux
+./scripts/apply-java-llama-android-patch.sh
+
+# Windows (Git Bash 또는 cmd)
+scripts\apply-java-llama-android-patch.bat
+```
+
+이미 서브모듈을 받았다면: `git submodule update --init` 후 위 스크립트 실행.
 
 ### 3. API 키 설정
 
