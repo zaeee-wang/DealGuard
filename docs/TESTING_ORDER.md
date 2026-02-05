@@ -8,10 +8,10 @@
 
 1. **프로젝트 가져오기**
    ```bash
-   git clone -b Backend https://github.com/jhparktime/DealGuard.git
-   cd DealGuard
+   git clone -b Backend https://github.com/jhparktime/DealGuard.git OnGuard
+   cd OnGuard
    ```
-   (이미 클론했다면 `git pull origin Backend`)
+   (프로젝트 명: **OnGuard**. 이미 클론했다면 `git pull origin Backend`)
 
 2. **Android Studio에서 열기**
    - **File → Open** → `OnGuard` 폴더 선택

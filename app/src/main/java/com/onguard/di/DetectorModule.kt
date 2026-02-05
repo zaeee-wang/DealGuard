@@ -21,6 +21,7 @@ abstract class DetectorModule {
     companion object {
         @Provides
         @Singleton
+        @JvmStatic
         fun provideHybridScamDetectorConfig(): HybridScamDetectorConfig =
             HybridScamDetectorConfig.Default
     }
