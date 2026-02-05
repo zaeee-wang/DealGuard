@@ -22,6 +22,27 @@
    | ③ | **local.properties 생성** — `local.properties.template`을 복사해 `local.properties` 만들고, `sdk.dir`(Android SDK 경로)와 `THECHEAT_API_KEY`(선택) 입력 | ✅ (sdk.dir 필수) |
    | ④ | **(선택) LLM 모델** — Qwen GGUF를 `app/src/main/assets/models/qwen2.5-1.5b-instruct-q4_k_m.gguf` 로 넣으면 LLM 탐지 사용, 없으면 Rule-based만 동작 | 선택 |
 
+   **③ Windows에서 local.properties 만드는 방법**
+
+   1. **파일 복사**
+      - 프로젝트 **루트**(OnGuard 폴더, `build.gradle.kts`가 있는 곳)로 이동
+      - `local.properties.template` 파일을 **복사**한 뒤 이름을 **`local.properties`** 로 변경  
+      - 탐색기: `local.properties.template` 우클릭 → 복사 → 붙여넣기 → 새 파일 이름을 `local.properties`로 변경  
+      - 또는 CMD: `copy local.properties.template local.properties`
+   2. **sdk.dir 수정 (필수)**
+      - `local.properties`를 메모장/VS Code 등으로 열기
+      - `sdk.dir=/path/to/your/Android/sdk` 줄을 **본인 PC의 Android SDK 경로**로 바꾸기  
+      - **Windows는 반드시 슬래시(`/`)만 사용** (백슬래시 쓰면 "경로 잘못됨" 나올 수 있음):
+        - ✅ `sdk.dir=C:/Users/사용자이름/AppData/Local/Android/Sdk`
+        - ✅ 탐색기에서 복사한 `C:\Users\...` 경로는 **모든 `\` 를 `/` 로 바꿔서** 넣기
+      - 백슬래시를 꼭 쓰려면 **`\` 하나당 `\\` 두 개**로 적기:
+        - 예: `sdk.dir=C:\\Users\\사용자이름\\AppData\\Local\\Android\\Sdk`
+      - SDK 경로 모를 때: Android Studio → **File → Settings** → **Languages & Frameworks → Android SDK** → 상단 **Android SDK location** 에 나온 경로 복사한 뒤, `\` 를 `/` 로 바꿔서 넣기
+   3. **THECHEAT_API_KEY (선택)**
+      - 더치트 API를 쓸 때만: `THECHEAT_API_KEY=your_api_key_here` 를 발급받은 키로 변경
+      - 안 쓰면 그대로 두어도 됨
+   4. **저장 후** 프로젝트 루트에 `local.properties` 파일이 있으면 됨 (Git에는 올리지 않음)
+
    ```bash
    # ① 서브모듈
    git submodule update --init
@@ -145,6 +166,7 @@
 
 | 현상 | 확인 순서 |
 |------|-----------|
+| **경로가 잘못되었다고 나옴** (local.properties) | Windows: `sdk.dir`에 **백슬래시(`\`) 대신 슬래시(`/`)만** 사용. 예: `sdk.dir=C:/Users/이름/AppData/Local/Android/Sdk` |
 | **오버레이 안 뜸** | 오버레이 권한 ON인지, Logcat에 OverlayService 에러 있는지 |
 | **텍스트를 안 잡음** | 접근성 서비스 ON인지, 대상 앱이 지원 목록인지, Logcat에 `onAccessibilityEvent` 로그 있는지 |
 | **스캠인데 안 잡힘** | 메시지가 20자 이상인지, 키워드(급전/계좌번호/입금 등) 포함인지, confidence 0.5 이상인지 |

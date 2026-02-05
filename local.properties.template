@@ -3,6 +3,9 @@
 ## DO NOT commit local.properties to version control!
 
 # Android SDK location
+# Windows: 슬래시(/) 사용 권장 (백슬래시 쓰면 반드시 \\ 두 개씩)
+#   예: sdk.dir=C:/Users/사용자이름/AppData/Local/Android/Sdk
+# Mac:   예: sdk.dir=/Users/사용자이름/Library/Android/sdk
 sdk.dir=/path/to/your/Android/sdk
 
 # API Keys
