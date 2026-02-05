@@ -116,6 +116,8 @@ class HybridScamDetector @Inject constructor(
                 combinedReasons.add("의심스러운 조합: 긴급 + 금전 + URL")
             }
         }
+        // 조합 보너스 추가 후에도 1.0 초과 방지
+        ruleConfidence = ruleConfidence.coerceIn(0f, 1f)
 
         // 7. LLM 분석
         // - 룰 기반 결과 + 키워드/URL 신호를 바탕으로 LLM에게 컨텍스트 설명/보조 신뢰도를 요청한다.
