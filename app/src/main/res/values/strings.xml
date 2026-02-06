@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OnGuard</string>
+
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_description">
+        OnGuard는 메신저 앱에서 피싱/스캠 메시지를 실시간으로 탐지하여 경고합니다.\n\n
+        ✅ 수집 데이터: 메신저 앱의 텍스트만 분석 (이미지/미디어 무시)\n
+        ✅ 처리 방식: 모든 분석은 기기 내에서 수행 (서버 전송 없음)\n
+        ✅ 대상 앱: 카카오톡, 텔레그램, 왓츠앱, 메신저\n\n
+        본 서비스는 사용자의 프라이버시를 최우선으로 보호합니다.
+    </string>
+
+    <!-- Permission -->
+    <string name="permission_overlay_title">오버레이 권한 필요</string>
+    <string name="permission_overlay_description">스캠 감지 시 경고 화면을 표시하기 위해 필요합니다.</string>
+    <string name="permission_accessibility_title">접근성 서비스 권한 필요</string>
+    <string name="permission_accessibility_description">메신저 앱의 텍스트를 분석하기 위해 필요합니다.</string>
+
+    <!-- Common -->
+    <string name="btn_grant">권한 허용</string>
+    <string name="btn_dismiss">무시</string>
+    <string name="btn_settings">설정</string>
+    <string name="btn_continue">계속</string>
+
+    <!-- Warning -->
+    <string name="warning_scam_detected">⚠️ 스캠 메시지 감지</string>
+    <string name="warning_confidence">신뢰도: %.1f%%</string>
+</resources>
