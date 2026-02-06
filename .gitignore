@@ -24,6 +24,9 @@ build/
 # Local configuration file (sdk path, etc)
 local.properties
 
+# Python venv (not needed for Android build)
+.venv/
+
 # Android Studio
 *.iml
 .idea/
@@ -70,6 +73,9 @@ test.jar
 *.tflite
 app/src/main/assets/models/*.bin
 app/src/main/assets/models/*.tflite
+# Large model files (clone 후 별도 다운로드, README 참고)
+app/src/main/assets/models/*.gguf
+app/src/main/assets/models/*.onnx
 
 # API Keys (NEVER COMMIT)
 kaggle.json
@@ -90,3 +96,8 @@ nul
 
 # Claude Code
 .claude/
+app/src/main/assets/tokenizers/smollm2/model.safetensors
+
+# Local build scripts (user-specific JDK paths)
+build_with_*.bat
+build_with_*.sh

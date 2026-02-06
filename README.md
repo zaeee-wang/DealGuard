@@ -2,7 +2,7 @@
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-8.0+-green.svg)](https://developer.android.com)
-[![Gemma](https://img.shields.io/badge/Gemma_3-270M-orange.svg)](https://ai.google.dev/gemma)
+[![LLM](https://img.shields.io/badge/LLM-llama.cpp_+_Qwen_1.5B-orange.svg)](https://github.com/ggerganov/llama.cpp)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 플랫폼에 구애받지 않는 실시간 스캠 탐지 안드로이드 앱
@@ -17,7 +17,7 @@
   - 메신저: 카카오톡, 텔레그램, 왓츠앱, 페이스북 메신저, 인스타그램, 라인, 디스코드 등
   - SMS/MMS: Google Messages, Samsung Messages, 기본 메시지 앱
   - 거래 플랫폼: 당근마켓
-- **하이브리드 AI 탐지**: Rule-based + On-device LLM (Gemma 3 270M) 결합
+- **하이브리드 AI 탐지**: Rule-based + On-device LLM (llama.cpp + Qwen 1.5B) 결합
   - 1차 필터: 키워드 매칭 + URL 분석 (빠른 탐지)
   - 2차 분석: sLLM 문맥 분석 + 위험 이유 설명 생성
 - **스캠 유형별 탐지**:
@@ -61,7 +61,7 @@
       │
       ▼ 애매한 경우 (30~70%)
 ┌─────────────────────────────┐
-│  Gemma 3 270M LLM 분석      │
+│  Qwen 1.5B LLM 분석 (llama.cpp) │
 │  - 문맥 기반 탐지           │
 │  - 위험 이유 설명 생성      │
 │  - 스캠 유형 분류           │
@@ -120,7 +120,7 @@ Architecture:   MVVM + Clean Architecture
 DI:             Hilt
 Async:          Kotlin Coroutines + Flow
 UI:             Jetpack Compose + XML (Overlay)
-On-device LLM:  MediaPipe LLM Inference API + Gemma 3 270M (4-bit quantized)
+On-device LLM:  llama.cpp (java-llama.cpp) + Qwen 2.5 1.5B GGUF
 ML:             TensorFlow Lite
 Network:        Retrofit2 + OkHttp
 Local DB:       Room
@@ -140,10 +140,24 @@ Build:          Gradle Kotlin DSL
 ### 2. 프로젝트 클론
 
 ```bash
-git clone https://github.com/jhparktime/OnGuard.git
+git clone --recurse-submodules https://github.com/jhparktime/OnGuard.git
 cd OnGuard
 git checkout Ai  # AI 브랜치
 ```
+
+**다른 PC에서 빌드할 때** (java-llama.cpp Android NDK 수정 적용):
+
+서브모듈은 원격에 수정이 올라가지 않으므로, clone 후 **한 번만** 아래 패치를 적용하세요.
+
+```bash
+# macOS / Linux
+./scripts/apply-java-llama-android-patch.sh
+
+# Windows (Git Bash 또는 cmd)
+scripts\apply-java-llama-android-patch.bat
+```
+
+이미 서브모듈을 받았다면: `git submodule update --init` 후 위 스크립트 실행.
 
 ### 3. API 키 설정
 
@@ -156,10 +170,10 @@ THECHEAT_API_KEY=your_api_key_here
 
 ### 4. LLM 모델 다운로드 (선택사항)
 
-sLLM 기능을 사용하려면 Gemma 모델이 필요합니다:
+LLM 기능을 사용하려면 Qwen GGUF 모델이 필요합니다:
 
-1. [Hugging Face](https://huggingface.co/litert-community/gemma-3-270m-it) 에서 라이선스 동의
-2. `gemma3-270m-it-q4_0-web.task` (249MB) 다운로드
+1. [Hugging Face](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF) 등에서 Qwen 2.5 1.5B GGUF(q4_k_m 권장) 다운로드
+2. 파일명을 **`model.gguf`**로 변경
 3. `app/src/main/assets/models/` 폴더에 복사
 
 > **Note**: 모델 없이도 Rule-based 탐지는 정상 작동합니다.
@@ -195,7 +209,7 @@ app/src/main/java/com/onguard/
 ├── detector/               # Scam Detection Engine
 │   ├── KeywordMatcher.kt   # Rule-based 키워드 매칭
 │   ├── UrlAnalyzer.kt      # URL 분석
-│   ├── LLMScamDetector.kt  # Gemma LLM 탐지기
+│   ├── LLMScamDetector.kt  # LLM 탐지기 (llama.cpp + Qwen)
 │   └── HybridScamDetector.kt  # 하이브리드 탐지 통합
 └── util/                   # Utilities
 ```
@@ -216,8 +230,8 @@ app/src/main/java/com/onguard/
 - [x] 더치트 API 연동
 - [x] Room 데이터베이스 구현
 - [x] Overlay 경고 시스템
-- [x] **sLLM 통합 (Gemma 3 270M)** - NEW!
-  - [x] MediaPipe LLM Inference API 연동
+- [x] **LLM 통합 (llama.cpp + Qwen 1.5B)**
+  - [x] java-llama.cpp + Qwen 2.5 GGUF 연동
   - [x] 투자/중고거래 스캠 탐지 프롬프트
   - [x] AI 경고 메시지 + 이유 설명 생성
   - [x] HybridScamDetector 통합
@@ -265,7 +279,7 @@ app/src/main/java/com/onguard/
 
 이 프로젝트는 데이콘 경진대회 출품작입니다.
 
-Gemma 모델 사용 시 [Google Gemma License](https://ai.google.dev/gemma/terms) 준수 필요
+Qwen 모델 사용 시 해당 모델의 라이선스 준수 필요
 
 ---
 
@@ -281,7 +295,7 @@ Gemma 모델 사용 시 [Google Gemma License](https://ai.google.dev/gemma/terms
 - 경찰청 & 데이터유니버스 - 경진대회 주최
 - 더치트 - 스캠 DB API 제공
 - KISA - 피싱사이트 공공 DB 제공
-- Google - Gemma 오픈소스 모델 제공
+- llama.cpp / Qwen - 온디바이스 LLM 인프라
 
 ---
 

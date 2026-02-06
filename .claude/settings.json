@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "project": "DealGuard",
+  "version": "1.1.0",
+  "project": "OnGuard",
   "hooks": {
     "pre-commit": {
       "enabled": true,
@@ -36,7 +36,7 @@
       "enabled": true,
       "min_coverage": 70,
       "critical_packages": [
-        "com.dealguard.detector"
+        "com.onguard.detector"
       ],
       "critical_min_coverage": 90
     },

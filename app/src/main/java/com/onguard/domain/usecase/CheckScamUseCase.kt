@@ -10,17 +10,12 @@ import javax.inject.Inject
  * [ScamCheckRepository]를 통해 더치트 API를 호출하여 신고된 스캠 정보를 조회한다.
  *
  * @param repository 더치트 API 연동 저장소
+ * @param validator 전화/계좌 형식 검증 (테스트 시 mock 주입 가능)
  */
 class CheckScamUseCase @Inject constructor(
-    private val repository: ScamCheckRepository
+    private val repository: ScamCheckRepository,
+    private val validator: PhoneAccountValidator = PhoneAccountValidator.Default
 ) {
-
-    companion object {
-        private const val MIN_PHONE_LENGTH = 10
-        private const val MAX_PHONE_LENGTH = 11
-        private const val MIN_ACCOUNT_LENGTH = 10
-        private const val MAX_ACCOUNT_LENGTH = 14
-    }
 
     /**
      * 전화번호 스캠 여부 확인
@@ -29,7 +24,7 @@ class CheckScamUseCase @Inject constructor(
      * @return ScamCheckResult (Safe, Scam, Error, Invalid 중 하나)
      */
     suspend fun checkPhoneNumber(phone: String): ScamCheckResult {
-        if (!isValidPhoneNumber(phone)) {
+        if (!validator.isValidPhoneNumber(phone)) {
             return ScamCheckResult.Invalid("유효하지 않은 전화번호 형식")
         }
 
@@ -58,7 +53,7 @@ class CheckScamUseCase @Inject constructor(
      * @return ScamCheckResult (Safe, Scam, Error, Invalid 중 하나)
      */
     suspend fun checkAccountNumber(account: String, bankCode: String? = null): ScamCheckResult {
-        if (!isValidAccountNumber(account)) {
+        if (!validator.isValidAccountNumber(account)) {
             return ScamCheckResult.Invalid("유효하지 않은 계좌번호 형식")
         }
 
@@ -77,16 +72,6 @@ class CheckScamUseCase @Inject constructor(
                 ScamCheckResult.Error(exception.message ?: "API 호출 실패")
             }
         )
-    }
-
-    private fun isValidPhoneNumber(phone: String): Boolean {
-        val normalized = phone.replace(Regex("[^0-9]"), "")
-        return normalized.length in MIN_PHONE_LENGTH..MAX_PHONE_LENGTH
-    }
-
-    private fun isValidAccountNumber(account: String): Boolean {
-        val normalized = account.replace(Regex("[^0-9]"), "")
-        return normalized.length in MIN_ACCOUNT_LENGTH..MAX_ACCOUNT_LENGTH
     }
 
     /**

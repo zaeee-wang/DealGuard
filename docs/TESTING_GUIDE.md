@@ -213,4 +213,124 @@ adb shell pm clear com.onguard
 
 ---
 
+---
+
+## 🤖 LLM 테스트 로직 (그래프)
+
+LLM(llama.cpp + Qwen) 연동부의 분석·테스트 흐름을 그래프로 정리한다.
+
+### 1. 전체 LLM 분석 흐름 (HybridScamDetector)
+
+```mermaid
+flowchart TD
+    A[analyze(text, useLLM)] --> B[KeywordMatcher.analyze]
+    B --> C[UrlAnalyzer.analyze]
+    C --> D[ruleConfidence 계산]
+    D --> E{ruleConfidence > 0.7?}
+    E -->|예| F[createRuleBasedResult<br/>즉시 반환]
+    E -->|아니오| G{0.4 ~ 0.7?<br/>긴급+금전+URL}
+    G -->|예| H[ruleConfidence + 0.15]
+    G -->|아니오| I{useLLM &&<br/>0.3 ≤ conf ≤ 0.7?}
+    H --> I
+    I -->|아니오| J[createRuleBasedResult]
+    I -->|예| K{LLM 사용 가능?}
+    K -->|아니오| L[지연 초기화 시도]
+    L --> M{초기화 성공?}
+    M -->|아니오| J
+    M -->|예| N[LLMScamAnalyzer.analyze<br/>LlmContext 전달]
+    K -->|예| N
+    N --> O{llmResult != null?}
+    O -->|아니오| J
+    O -->|예| P[combineResults<br/>Rule 40% + LLM 60%]
+    P --> Q[ScamAnalysis 반환]
+    F --> Q
+    J --> Q
+```
+
+### 2. LlamaManager 결과 분기
+
+```mermaid
+flowchart LR
+    subgraph initModel
+        I1[initModel] --> I2{assets 복사<br/>LlamaModel 로드}
+        I2 -->|성공| I3[LlamaInitResult.Success]
+        I2 -->|실패| I4[LlamaInitResult.Failure]
+    end
+
+    subgraph analyzeText
+        A1[analyzeText] --> A2{모델 초기화됨?}
+        A2 -->|아니오| A3[NotInitialized]
+        A2 -->|예| A4{입력 비어있음?}
+        A4 -->|예| A5[EmptyInput]
+        A4 -->|아니오| A6[Qwen 추론]
+        A6 --> A7{예외?}
+        A7 -->|예| A8[Error]
+        A7 -->|아니오| A9[Success(text)]
+    end
+```
+
+### 3. LLMScamDetector 분석 경로
+
+```mermaid
+flowchart TD
+    S[analyze(text, LlmContext?)] --> T{isAvailable?}
+    T -->|아니오| U[null 반환]
+    T -->|예| V[buildLlamaUserInput]
+    V --> W[LlamaManager.analyzeText]
+    W --> X{LlamaAnalyzeResult}
+    X -->|Success| Y{응답 유효?}
+    X -->|NotInitialized<br/>EmptyInput<br/>Error| U
+    Y -->|빈 문자열/분석실패| U
+    Y -->|예| Z[LlamaResponseParser.parseResponse]
+    Z --> AA{ScamAnalysis 파싱 성공?}
+    AA -->|아니오| U
+    AA -->|예| AB[ScamAnalysis 반환]
+```
+
+### 4. 테스트 계층 구조
+
+```mermaid
+flowchart TB
+    subgraph unit["단위 테스트 (JVM)"]
+        U1[ScamTypeInferrerTest]
+        U2[RuleBasedWarningGeneratorTest]
+        U3[PhoneAccountValidatorTest]
+        U4[LlamaResponseParser<br/>parseResponse 로직]
+        U5[KeywordMatcherTest]
+    end
+
+    subgraph integration["통합 테스트 (mock)"]
+        I1[HybridScamDetectorTest<br/>LLMScamAnalyzer mock]
+        I2[CheckScamUseCase +<br/>PhoneAccountValidator mock]
+    end
+
+    subgraph e2e["실기기 / E2E"]
+        E1[LlamaManager.initModel<br/>실제 GGUF 로드]
+        E2[LLMScamDetector.analyze<br/>실제 추론]
+        E3[HybridScamDetector<br/>Rule + LLM 결합]
+    end
+
+    unit --> integration
+    integration --> e2e
+```
+
+### 5. 관련 테스트 클래스 및 검증 포인트
+
+| 테스트 | 파일 | 검증 내용 |
+|--------|------|------------|
+| **ScamTypeInferrerTest** | `detector/ScamTypeInferrerTest.kt` | 사유 문자열 → ScamType (투자/중고/피싱/사칭/대출/UNKNOWN) |
+| **RuleBasedWarningGeneratorTest** | `detector/RuleBasedWarningGeneratorTest.kt` | ScamType + confidence → 경고 문구, 퍼센트 포함 |
+| **PhoneAccountValidatorTest** | `domain/usecase/PhoneAccountValidatorTest.kt` | 전화 10~11자리, 계좌 10~14자리 형식 검증 |
+| **HybridScamDetectorTest** | `detector/HybridScamDetectorTest.kt` | Rule-only / Rule+URL / 고신뢰도 즉시 반환 / LLM mock 시 결합 (mock이 null 반환 시 Rule만) |
+| **LlamaResponseParser** | (파서 로직) | JSON 추출 → ScamAnalysis, parseScamType 한글 매핑 |
+
+### 6. LLM 실사용 테스트 시 확인할 것
+
+- **모델 존재:** `assets/models/qwen2.5-1.5b-instruct-q4_k_m.gguf`
+- **초기화:** `LlamaManager.initModel()` → `LlamaInitResult.Success`
+- **Logcat 태그:** `LlamaManager`, `LLMScamDetector`, `HybridScamDetector`
+- **LLM 미사용 시:** 모델 없음/실패 시 Rule-based만 동작, `analyze`는 null 가능 → Hybrid는 Rule 결과만 반환
+
+---
+
 *Last Updated: 2025-01-29*

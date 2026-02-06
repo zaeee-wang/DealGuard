@@ -8,7 +8,8 @@
 
 ## 🎯 Mission
 
-DealGuard 프로젝트의 코드 품질을 보장하고, Clean Architecture 원칙 준수 및 보안 취약점을 사전에 발견합니다.
+OnGuard 프로젝트의 코드 품질을 보장하고, Clean Architecture 원칙 준수 및 보안 취약점을 사전에 발견합니다.
+OnGuard는 실시간 스캠/피싱 탐지 Android 앱으로, AccessibilityService를 활용한 플랫폼 독립적 보호 기능을 제공합니다.
 
 ---
 
@@ -344,5 +345,6 @@ try-finally 블록으로 반드시 recycle 호출을 보장하세요.
 
 ---
 
-*Agent Version: 1.0.0*
-*Last Updated: 2025-01-28*
+*Agent Version: 1.1.0*
+*Last Updated: 2026-02-05*
+*Project: OnGuard - 피싱/스캠 탐지 앱*

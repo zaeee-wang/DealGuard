@@ -45,9 +45,11 @@ class MainViewModel @Inject constructor(
 
     private fun loadRecentAlerts() {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
             scamAlertRepository.getAllAlerts()
                 .catch { e ->
                     _uiState.value = _uiState.value.copy(
+                        isLoading = false,
                         error = e.message ?: "알림 로드 실패"
                     )
                 }
@@ -55,6 +57,7 @@ class MainViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         recentAlerts = alerts.take(10),
                         totalAlertCount = alerts.size,
+                        isLoading = false,
                         error = null
                     )
                 }
@@ -109,5 +112,6 @@ data class MainUiState(
     val isOverlayEnabled: Boolean = false,
     val recentAlerts: List<ScamAlert> = emptyList(),
     val totalAlertCount: Int = 0,
+    val isLoading: Boolean = true,
     val error: String? = null
 )

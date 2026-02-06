@@ -96,15 +96,36 @@ class KeywordMatcherTest {
 
     @Test
     fun `대소문자 구분 없이 탐지`() {
-        // "급전"(0.25f) + "송금"(0.25f) = 0.5f, threshold is >0.5f
-        // Need to add more keywords or use CRITICAL keywords
+        // "급전"(0.25f) + "송금"(0.25f) = 0.5f, threshold is >=0.5f
         val text = "급전 필요하니 빨리 송금해주세요"
         val result = keywordMatcher.analyze(text)
 
-        // "급전"(0.25f) + "빨리"(해당없음) + "송금"(0.25f) = 0.5f, still not > 0.5f
-        // Test that keywords are detected regardless of case
+        // "급전"(0.25f) + "송금"(0.25f) = 0.5f, >= 0.5f 이므로 스캠 판정
         assertTrue("키워드 감지됨", result.detectedKeywords.contains("급전"))
         assertTrue("송금 키워드 감지됨", result.detectedKeywords.contains("송금"))
+        assertTrue("0.5f 경계값은 스캠으로 판정", result.isScam)
+    }
+
+    // ========== 0.5f 경계값 테스트 (임계값 수정 후 추가) ==========
+
+    @Test
+    fun `정확히 0점5 신뢰도는 스캠으로 판정`() {
+        // "급전"(0.25f) + "송금"(0.25f) = 0.5f
+        val text = "급전 필요합니다 송금해주세요"
+        val result = keywordMatcher.analyze(text)
+
+        assertTrue("0.5f 신뢰도는 스캠이어야 함", result.isScam)
+        assertEquals(0.5f, result.confidence, 0.01f)
+    }
+
+    @Test
+    fun `0점49 신뢰도는 스캠 아님`() {
+        // 단일 HIGH 키워드만 있는 경우 = 0.25f < 0.5f
+        val text = "급전이 필요해요"
+        val result = keywordMatcher.analyze(text)
+
+        assertFalse("0.25f 신뢰도는 스캠 아님", result.isScam)
+        assertTrue("신뢰도가 0.5 미만", result.confidence < 0.5f)
     }
 
     @Test

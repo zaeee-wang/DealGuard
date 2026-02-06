@@ -32,11 +32,11 @@ class HybridScamDetectorTest {
 
         coEvery { mockPhishingUrlRepository.isPhishingUrl(any()) } returns false
         coEvery { mockLlmScamDetector.analyze(any(), any(), any(), any(), any()) } returns null
+        coEvery { mockLlmScamDetector.isAvailable() } returns false
 
         keywordMatcher = KeywordMatcher()
         urlAnalyzer = UrlAnalyzer(mockPhishingUrlRepository)
 
-        // 3. 생성자에 mockLlmScamDetector 추가
         hybridScamDetector = HybridScamDetector(
             keywordMatcher,
             urlAnalyzer,

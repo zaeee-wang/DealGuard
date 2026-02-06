@@ -28,7 +28,7 @@ import kotlin.math.max
  *
  * @param keywordMatcher 키워드 기반 규칙 탐지기
  * @param urlAnalyzer URL 위험도 분석기
- * @param llmScamDetector LLM 기반 탐지기 (선택)
+ * @param llmScamDetector LLM 기반 탐지기 (Gemini API)
  */
 @Singleton
 class HybridScamDetector @Inject constructor(
@@ -39,6 +39,9 @@ class HybridScamDetector @Inject constructor(
 
     companion object {
         private const val TAG = "OnGuardHybrid"
+
+        // 최종 스캠 판정 임계값: 결합된 신뢰도가 0.5를 넘으면 스캠으로 간주
+        private const val FINAL_SCAM_THRESHOLD = 0.5f
 
         // 고위험 임계값: 70% 이상이면 즉시 스캠 판정
         private const val HIGH_CONFIDENCE_THRESHOLD = 0.7f
@@ -168,7 +171,7 @@ class HybridScamDetector @Inject constructor(
             }
         }
 
-        // 8. Final rule-based result
+        // 7. Final rule-based result
         return createRuleBasedResult(
             ruleConfidence.coerceIn(0f, 1f),
             combinedReasons,
@@ -204,7 +207,7 @@ class HybridScamDetector @Inject constructor(
         }
 
         return ScamAnalysis(
-            isScam = combinedConfidence > 0.5f || llmResult.isScam,
+            isScam = combinedConfidence > FINAL_SCAM_THRESHOLD || llmResult.isScam,
             confidence = combinedConfidence,
             reasons = allReasons,
             detectedKeywords = detectedKeywords,
@@ -231,13 +234,13 @@ class HybridScamDetector @Inject constructor(
         hasUrlIssues: Boolean
     ): ScamAnalysis {
         // Rule-based에서 스캠 유형 추론
-        val scamType = inferScamType(reasons)
+        val scamType = ScamTypeInferrer.inferScamType(reasons)
 
         // Rule-based 경고 메시지 생성
-        val warningMessage = generateRuleBasedWarning(scamType, confidence)
+        val warningMessage = RuleBasedWarningGenerator.generateWarning(scamType, confidence)
 
         return ScamAnalysis(
-            isScam = confidence > 0.5f,
+            isScam = confidence > FINAL_SCAM_THRESHOLD,
             confidence = confidence,
             reasons = reasons,
             detectedKeywords = detectedKeywords,

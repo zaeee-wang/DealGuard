@@ -1,14 +1,14 @@
 # Android Scam Detection Skill
 
 **Skill ID**: `android-scam-detection`
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Category**: Android Development, Security
 
 ---
 
 ## 📋 Overview
 
-이 스킬은 DealGuard 프로젝트에 특화된 스캠 탐지 안드로이드 앱 개발을 위한 전문 지식을 제공합니다.
+이 스킬은 OnGuard 프로젝트에 특화된 피싱/스캠 탐지 안드로이드 앱 개발을 위한 전문 지식을 제공합니다.
 
 ### 핵심 역량
 
@@ -395,5 +395,6 @@ fun extractText(node: AccessibilityNodeInfo): String {
 
 ---
 
-*Last Updated: 2025-01-28*
-*Skill Maintainer: DealGuard Team*
+*Last Updated: 2026-02-05*
+*Skill Maintainer: OnGuard Team*
+*Project: OnGuard - 피싱/스캠 탐지 앱*

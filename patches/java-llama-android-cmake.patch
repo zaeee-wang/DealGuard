@@ -1,0 +1,25 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -31,6 +31,22 @@ FetchContent_MakeAvailable(llama.cpp)
+ 
+ #################### jllama ####################
+ 
++# Android NDK build: do not require host Java; set OS/ARCH/JNI from NDK
++if(CMAKE_SYSTEM_NAME STREQUAL "Android")
++    set(OS_NAME "Linux")
++    if(ANDROID_ABI STREQUAL "arm64-v8a")
++        set(OS_ARCH "aarch64")
++    elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
++        set(OS_ARCH "arm")
++    elseif(ANDROID_ABI STREQUAL "x86_64")
++        set(OS_ARCH "x86_64")
++    else()
++        set(OS_ARCH "${ANDROID_ABI}")
++    endif()
++    set(JNI_INCLUDE_DIRS "${CMAKE_SYSROOT}/usr/include")
++    message(STATUS "Android build: OS_NAME=${OS_NAME} OS_ARCH=${OS_ARCH}")
++endif()
++
+ # find which OS we build for if not set (make sure to run mvn compile first)
+ if(NOT DEFINED OS_NAME)
+     find_package(Java REQUIRED)

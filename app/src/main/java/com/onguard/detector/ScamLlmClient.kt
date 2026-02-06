@@ -34,4 +34,3 @@ data class ScamLlmRequest(
     val ruleReasons: List<String>,
     val detectedKeywords: List<String>
 )
-

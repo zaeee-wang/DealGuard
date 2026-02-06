@@ -1,11 +1,11 @@
 import java.util.Properties
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    id("com.android.application") version "8.13.2"
+    id("org.jetbrains.kotlin.android") version "2.0.21"
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
-    id("com.google.dagger.hilt.android")
-    id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android") version "2.51.1"
+    id("com.google.devtools.ksp") version "2.0.21-1.0.27"
 }
 
 android {
@@ -25,7 +25,7 @@ android {
             useSupportLibrary = true
         }
 
-        // API Keys & feature flags from local.properties
+        // API Keys from local.properties
         val localPropertiesFile = rootProject.file("local.properties")
         val properties = Properties()
         if (localPropertiesFile.exists()) {
@@ -35,22 +35,11 @@ android {
         buildConfigField("String", "THECHEAT_API_KEY", "\"${properties.getProperty("THECHEAT_API_KEY", "")}\"")
         buildConfigField("String", "KISA_API_KEY", "\"${properties.getProperty("KISA_API_KEY", "")}\"")
 
-        // Google Gemini API Key (무료 티어 사용)
-        // - local.properties에 GEMINI_API_KEY=... 로 설정
+        // Gemini API 설정
+        buildConfigField("boolean", "ENABLE_LLM", properties.getProperty("ENABLE_LLM", "true"))
         buildConfigField("String", "GEMINI_API_KEY", "\"${properties.getProperty("GEMINI_API_KEY", "")}\"")
+        buildConfigField("int", "GEMINI_MAX_CALLS_PER_DAY", properties.getProperty("GEMINI_MAX_CALLS_PER_DAY", "100"))
 
-        // Gemini LLM 일일 호출 상한 (무료 티어 보호용)
-        // - Google Gemini 무료 티어: 프로젝트 기준 하루 250회 제한
-        // - 기본값: 100 (MVP 단계에서는 넉넉한 버퍼 확보)
-        // - local.properties 에서 GEMINI_MAX_CALLS_PER_DAY=숫자 로 조정 가능
-        val geminiMaxCallsPerDay = properties.getProperty("GEMINI_MAX_CALLS_PER_DAY", "100")
-        buildConfigField("int", "GEMINI_MAX_CALLS_PER_DAY", geminiMaxCallsPerDay)
-
-        // Sherpa-ONNX LLM 사용 여부 플래그
-        // - 기본값은 true (LLM 활성)
-        // - local.properties에 ENABLE_LLM=false 를 설정하면 비활성화된다.
-        val enableLlm = properties.getProperty("ENABLE_LLM", "true")
-        buildConfigField("boolean", "ENABLE_LLM", enableLlm)
     }
 
     buildTypes {
@@ -82,13 +71,15 @@ android {
         buildConfig = true
     }
 
-    // Compose compiler is now configured via the compose plugin
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
+
 }
 
 dependencies {
@@ -104,13 +95,14 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
 
     // Hilt DI
     implementation("com.google.dagger:hilt-android:2.51.1")
     ksp("com.google.dagger:hilt-android-compiler:2.51.1")
-    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
@@ -128,12 +120,17 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
+    // TensorFlow Lite (기타 모델용으로 남겨둠)
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
+
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")
 
     // WorkManager for periodic tasks
     implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("androidx.hilt:hilt-work:1.1.0")
+    implementation("androidx.hilt:hilt-work:1.2.0")
     ksp("androidx.hilt:hilt-compiler:1.2.0")
 
     // Testing

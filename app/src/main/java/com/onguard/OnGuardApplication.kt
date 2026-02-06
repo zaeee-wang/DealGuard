@@ -15,10 +15,15 @@ import javax.inject.Inject
 /**
  * OnGuard 애플리케이션 진입점.
  *
- * Hilt DI 초기화, LLM 모델 사전 로딩, WorkManager 스케줄링을 담당한다.
+ * Hilt DI 초기화, WorkManager 스케줄링을 담당한다.
  * [Configuration.Provider]를 구현하여 Hilt 기반 WorkManager 초기화를 제공한다.
  *
- * @see HybridScamDetector LLM 초기화 대상
+ * ## LLM 처리
+ * Gemini API를 사용하므로 별도 초기화가 필요 없음.
+ * API 키와 일일 할당량은 [BuildConfig]에서 관리되며,
+ * [HybridScamDetector]가 분석 시점에 [LLMScamDetector.isAvailable()]을 체크함.
+ *
+ * @see HybridScamDetector 하이브리드 스캠 탐지기 (Rule-based + Gemini LLM)
  * @see WorkManagerScheduler 피싱 DB 주기 업데이트 스케줄링
  */
 @HiltAndroidApp

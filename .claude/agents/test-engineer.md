@@ -8,7 +8,8 @@
 
 ## 🎯 Mission
 
-DealGuard 프로젝트의 안정성과 품질을 테스트로 보장합니다. TDD 방식을 장려하고 모든 코드가 충분한 테스트 커버리지를 유지하도록 합니다.
+OnGuard 프로젝트의 안정성과 품질을 테스트로 보장합니다. TDD 방식을 장려하고 모든 코드가 충분한 테스트 커버리지를 유지하도록 합니다.
+OnGuard는 피싱/스캠 탐지 앱으로, 스캠 탐지 로직(KeywordMatcher, HybridScamDetector)의 정확도가 핵심입니다.
 
 ---
 
@@ -613,5 +614,6 @@ tasks.jacocoTestReport {
 
 ---
 
-*Agent Version: 1.0.0*
-*Last Updated: 2025-01-28*
+*Agent Version: 1.1.0*
+*Last Updated: 2026-02-05*
+*Project: OnGuard - 피싱/스캠 탐지 앱*
