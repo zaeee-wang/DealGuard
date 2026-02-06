@@ -7,6 +7,8 @@ import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.onguard.data.local.DetectionSettings
+import com.onguard.data.local.DetectionSettingsDataStore
 import com.onguard.detector.HybridScamDetector
 import com.onguard.domain.model.ScamAnalysis
 import com.onguard.util.DebugLog
@@ -15,11 +17,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import javax.inject.Inject
 
-import android.util.Log // 10개 이상의 'Log' 관련 에러 해결
+import android.util.Log
 import java.util.ArrayList
 
 /**
@@ -41,6 +44,10 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
     /** 하이브리드 스캠 탐지기 (Rule-based + LLM) */
     @Inject
     lateinit var scamDetector: HybridScamDetector
+
+    /** 탐지 설정 저장소 (DataStore) */
+    @Inject
+    lateinit var detectionSettingsStore: DetectionSettingsDataStore
 
     private val targetPackages = setOf(
         // 메신저 앱
@@ -181,12 +188,40 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         }
 
         serviceInfo = info
+
+        // 탐지 설정 변경 관찰 → 캐시 업데이트
+        serviceScope.launch {
+            detectionSettingsStore.settingsFlow.collect { settings ->
+                cachedSettings = settings
+                DebugLog.infoLog(TAG) {
+                    "step=settings_updated enabled=${settings.isDetectionEnabled} " +
+                    "pauseUntil=${settings.pauseUntilTimestamp} " +
+                    "disabledApps=${settings.disabledApps.size}"
+                }
+            }
+        }
     }
+
+    // 탐지 설정 캐시 (빠른 동기 접근용)
+    // - Flow에서 최신 값을 가져와 캐시
+    // - onAccessibilityEvent에서 동기적으로 빠르게 체크
+    @Volatile
+    private var cachedSettings: DetectionSettings = DetectionSettings()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         // 패키지 체크
         val packageName = event.packageName?.toString()
         if (packageName !in targetPackages) return
+
+        // 탐지 설정 체크 (캐시된 값 사용 - 동기적 빠른 체크)
+        // - 전역 탐지 비활성화 또는 일시 중지 상태이면 스킵
+        // - 앱별 비활성화 설정 체크
+        if (!cachedSettings.isActiveForApp(packageName ?: "")) {
+            DebugLog.debugLog(TAG) {
+                "step=on_event skip reason=detection_disabled app=$packageName"
+            }
+            return
+        }
 
         // 이벤트 타입 체크
         when (event.eventType) {
@@ -446,6 +481,8 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
      * 메시지 입력 필드 존재 여부 확인 (재귀 탐색)
      *
      * EditText, 편집 가능 노드, 또는 입력 관련 리소스 ID가 있으면 true
+     *
+     * 당근마켓 등 커스텀 UI 사용 앱을 위한 추가 패턴 포함
      */
     private fun hasMessageInputField(node: AccessibilityNodeInfo, depth: Int = 0): Boolean {
         // 최대 탐색 깊이 제한 (성능)
@@ -457,18 +494,32 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             return true
         }
 
-        // 2. 입력 관련 클래스 확인
+        // 2. 입력 관련 클래스 확인 (Compose 포함)
         val className = node.className?.toString() ?: ""
-        if (className.contains("EditText", ignoreCase = true)) {
-            Log.d(TAG, "Found EditText class - inside chat room")
+        val inputClasses = setOf(
+            "EditText",
+            "BasicTextField",           // Jetpack Compose
+            "CoreTextField",             // Compose internal
+            "TextField",
+            "TextInput",
+            "ComposeView"                // Compose 컨테이너
+        )
+        if (inputClasses.any { className.contains(it, ignoreCase = true) }) {
+            Log.d(TAG, "Found input class: $className - inside chat room")
             return true
         }
 
-        // 3. 입력 관련 리소스 ID 확인
+        // 3. 입력 관련 리소스 ID 확인 (당근마켓 등 커스텀 앱 패턴 추가)
         val resourceId = node.viewIdResourceName ?: ""
         val inputPatterns = setOf(
+            // 일반 패턴
             "input", "edit", "compose", "message_input", "chat_input",
-            "text_input", "send_text", "write", "reply"
+            "text_input", "send_text", "write", "reply",
+            // 당근마켓/중고거래 앱 패턴
+            "message_box", "chat_field", "dm_input", "write_area",
+            "input_wrapper", "text_container", "chat_box", "msg_input",
+            // 전송 버튼도 채팅방 표시로 간주
+            "send_button", "send_btn", "btn_send", "submit"
         )
         if (resourceId.isNotEmpty() && inputPatterns.any {
             resourceId.contains(it, ignoreCase = true)
@@ -477,7 +528,19 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             return true
         }
 
-        // 4. 자식 노드 재귀 탐색
+        // 4. contentDescription으로 입력 필드 감지 (접근성 라벨 기반)
+        val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val inputDescPatterns = setOf(
+            "메시지 입력", "메시지를 입력", "내용 입력", "채팅 입력",
+            "message input", "type a message", "write message",
+            "전송", "보내기"
+        )
+        if (contentDesc.isNotEmpty() && inputDescPatterns.any { contentDesc.contains(it) }) {
+            Log.d(TAG, "Found input contentDescription: $contentDesc - inside chat room")
+            return true
+        }
+
+        // 5. 자식 노드 재귀 탐색
         for (i in 0 until node.childCount) {
             node.getChild(i)?.let { child ->
                 try {

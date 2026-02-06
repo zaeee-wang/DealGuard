@@ -33,6 +33,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Settings Activity -->
+        <activity
+            android:name=".presentation.ui.settings.SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.OnGuard" />
+
         <!-- Accessibility Service -->
         <service
             android:name=".service.ScamDetectionAccessibilityService"

@@ -32,6 +32,7 @@ import com.onguard.domain.model.ScamAlert
 import com.onguard.presentation.ui.theme.OnGuardTheme
 import com.onguard.presentation.viewmodel.MainUiState
 import com.onguard.presentation.viewmodel.MainViewModel
+import com.onguard.presentation.ui.settings.SettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
 import java.text.SimpleDateFormat
 import java.util.*
@@ -100,7 +101,10 @@ fun MainScreen(
                 ),
                 actions = {
                     IconButton(
-                        onClick = { /* TODO: SettingsActivity 호출 */ },
+                        onClick = {
+                            val intent = Intent(context, SettingsActivity::class.java)
+                            context.startActivity(intent)
+                        },
                         modifier = Modifier.semantics {
                             contentDescription = "설정"
                         }
