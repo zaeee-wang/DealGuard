@@ -30,7 +30,7 @@ data class ScamAnalysis(
  * - ML_CLASSIFIER: ML 분류기 (미구현)
  * - HYBRID: 규칙 + URL 또는 규칙 + LLM 결합
  * - EXTERNAL_DB: 더치트/KISA 등 외부 DB 조회
- * - LLM: 온디바이스 LLM(llama.cpp + Qwen) 기반 탐지
+ * - LLM: Sherpa-ONNX + 온디바이스 LLM(SmolLM2 등) 기반 탐지
  */
 enum class DetectionMethod {
     RULE_BASED,

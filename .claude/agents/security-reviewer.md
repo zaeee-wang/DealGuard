@@ -2,7 +2,7 @@
 name: security-reviewer
 description: Security vulnerability detection and remediation specialist for Android apps. Use PROACTIVELY after writing code that handles user input, AccessibilityService data, API calls, or sensitive data. Flags secrets, data leaks, unsafe permissions, and Android-specific vulnerabilities.
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: opus
+model: sonnet-4.5
 ---
 
 # Security Reviewer

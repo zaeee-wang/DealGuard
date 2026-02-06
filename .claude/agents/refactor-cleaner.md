@@ -2,7 +2,7 @@
 name: refactor-cleaner
 description: Dead code cleanup and consolidation specialist for Android/Kotlin. Use PROACTIVELY for removing unused code, duplicates, and refactoring. Uses Gradle lint, detekt, and manual analysis to identify dead code and safely removes it.
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: opus
+model: sonnet-4.5
 ---
 
 # Refactor & Dead Code Cleaner

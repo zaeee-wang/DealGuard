@@ -4,7 +4,6 @@ import android.app.Application
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import com.onguard.detector.HybridScamDetector
 import com.onguard.worker.WorkManagerScheduler
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -38,10 +37,6 @@ class OnGuardApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var workManagerScheduler: WorkManagerScheduler
 
-    /** 하이브리드 스캠 탐지기 (Rule-based + LLM) */
-    @Inject
-    lateinit var hybridScamDetector: HybridScamDetector
-
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     companion object {
@@ -52,13 +47,10 @@ class OnGuardApplication : Application(), Configuration.Provider {
         super.onCreate()
         Log.i(TAG, "OnGuard Application started")
 
-        // Gemini API 사용으로 LLM 사전 초기화 불필요
-        // - API 키/할당량 체크: LLMScamDetector.isAvailable()
-        // - 분석 요청: HybridScamDetector가 조건부로 호출
-
         // WorkManager 초기화 및 주기적 업데이트 스케줄링
         initializeWorkManager()
     }
+
 
     /**
      * WorkManager를 초기화하고 피싱 DB 주기 업데이트를 스케줄링한다.

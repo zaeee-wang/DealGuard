@@ -33,7 +33,14 @@
       "Bash(git check-ignore:*)",
       "Bash(cmd /c \"gradlew.bat assembleDebug --no-daemon 2>&1\")",
       "Bash(git -C c:DealGuard status)",
-      "Bash(git -C c:DealGuard diff --stat)"
+      "Bash(git -C c:DealGuard diff --stat)",
+      "Bash(git log:*)",
+      "Read(//c/DealGuard/**)",
+      "Bash(git ls-tree:*)",
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(ls:*)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug:*)"
     ]
   }
 }

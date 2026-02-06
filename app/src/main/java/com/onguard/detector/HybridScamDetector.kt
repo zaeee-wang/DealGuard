@@ -2,6 +2,7 @@ package com.onguard.detector
 
 import com.onguard.domain.model.DetectionMethod
 import com.onguard.domain.model.ScamAnalysis
+import com.onguard.domain.model.ScamType
 import com.onguard.util.DebugLog
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,6 +45,7 @@ class HybridScamDetector @Inject constructor(
 
         // 중위험 임계값: 40% 이상이면 추가 조합 분석 수행
         private const val MEDIUM_CONFIDENCE_THRESHOLD = 0.4f
+        private const val LOW_CONFIDENCE_THRESHOLD = 0.25f
 
         // LLM 분석 조건: Rule-based 결과가 애매한 경우(0.5~1.0) + 금전/긴급/URL 신호 존재
         private const val LLM_TRIGGER_LOW = 0.5f
@@ -52,9 +54,6 @@ class HybridScamDetector @Inject constructor(
         // 가중치
         private const val RULE_WEIGHT = 0.4f
         private const val LLM_WEIGHT = 0.6f
-
-        // 최종 스캠 판정 임계값
-        private const val FINAL_SCAM_THRESHOLD = 0.5f
     }
 
     /**
@@ -120,7 +119,7 @@ class HybridScamDetector @Inject constructor(
         // 조합 보너스 추가 후에도 1.0 초과 방지
         ruleConfidence = ruleConfidence.coerceIn(0f, 1f)
 
-        // 6. LLM 분석
+        // 7. LLM 분석
         // - 룰 기반 결과 + 키워드/URL 신호를 바탕으로 LLM에게 컨텍스트 설명/보조 신뢰도를 요청한다.
         val lowerText = text.lowercase()
         val hasMoneyKeyword = listOf("입금", "송금", "계좌", "선입금", "대출", "돈", "급전")
@@ -201,7 +200,7 @@ class HybridScamDetector @Inject constructor(
         val allReasons = (ruleReasons + llmResult.reasons).distinct()
 
         DebugLog.debugLog(TAG) {
-            "step=combine rule=$ruleConfidence llm=${llmResult.confidence} final=$combinedConfidence isScam=${combinedConfidence > FINAL_SCAM_THRESHOLD || llmResult.isScam} scamType=${llmResult.scamType}"
+            "step=combine rule=$ruleConfidence llm=${llmResult.confidence} final=$combinedConfidence isScam=${combinedConfidence > 0.5f || llmResult.isScam} scamType=${llmResult.scamType}"
         }
 
         return ScamAnalysis(
@@ -248,4 +247,63 @@ class HybridScamDetector @Inject constructor(
             suspiciousParts = detectedKeywords.take(3)  // 상위 3개 키워드
         )
     }
+
+    /**
+     * 규칙 기반 사유 문자열에서 [ScamType]을 추론한다.
+     *
+     * @param reasons 탐지 사유 목록 (키워드/패턴 설명)
+     * @return 추론된 [ScamType]
+     */
+    private fun inferScamType(reasons: List<String>): ScamType {
+        val reasonText = reasons.joinToString(" ")
+
+        return when {
+            reasonText.contains("투자") || reasonText.contains("수익") ||
+                    reasonText.contains("코인") || reasonText.contains("주식") -> ScamType.INVESTMENT
+
+            reasonText.contains("입금") || reasonText.contains("선결제") ||
+                    reasonText.contains("거래") || reasonText.contains("택배") -> ScamType.USED_TRADE
+
+            reasonText.contains("URL") || reasonText.contains("링크") ||
+                    reasonText.contains("피싱") -> ScamType.PHISHING
+
+            reasonText.contains("사칭") || reasonText.contains("기관") -> ScamType.IMPERSONATION
+
+            reasonText.contains("대출") -> ScamType.LOAN
+
+            else -> ScamType.UNKNOWN
+        }
+    }
+
+    /**
+     * Rule-based 전용 경고 메시지를 생성한다.
+     *
+     * @param scamType 스캠 유형
+     * @param confidence 신뢰도 (퍼센트 표시용)
+     * @return 사용자에게 표시할 한글 경고 문구
+     */
+    private fun generateRuleBasedWarning(scamType: ScamType, confidence: Float): String {
+        val confidencePercent = (confidence * 100).toInt()
+
+        return when (scamType) {
+            ScamType.INVESTMENT ->
+                "이 메시지는 투자 사기로 의심됩니다 (위험도 $confidencePercent%). 고수익을 보장하는 투자는 대부분 사기입니다."
+
+            ScamType.USED_TRADE ->
+                "중고거래 사기가 의심됩니다 (위험도 $confidencePercent%). 선입금을 요구하면 직거래로 진행하세요."
+
+            ScamType.PHISHING ->
+                "피싱 링크가 포함되어 있습니다 (위험도 $confidencePercent%). 의심스러운 링크를 클릭하지 마세요."
+
+            ScamType.IMPERSONATION ->
+                "사칭 사기가 의심됩니다 (위험도 $confidencePercent%). 공식 채널을 통해 확인하세요."
+
+            ScamType.LOAN ->
+                "대출 사기가 의심됩니다 (위험도 $confidencePercent%). 선수수료 요구는 불법입니다."
+
+            else ->
+                "사기 의심 메시지입니다 (위험도 $confidencePercent%). 주의하세요."
+        }
+    }
+
 }

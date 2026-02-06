@@ -3,6 +3,7 @@ package com.onguard.detector
 import com.onguard.domain.model.DetectionMethod
 import com.onguard.domain.repository.PhishingUrlRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -30,7 +31,7 @@ class HybridScamDetectorTest {
         mockLlmScamAnalyzer = mockk<LLMScamAnalyzer>(relaxed = true)
 
         coEvery { mockPhishingUrlRepository.isPhishingUrl(any()) } returns false
-        coEvery { mockLlmScamAnalyzer.analyze(any(), any()) } returns null
+        coEvery { mockLlmScamDetector.analyze(any(), any(), any(), any(), any()) } returns null
 
         keywordMatcher = KeywordMatcher()
         urlAnalyzer = UrlAnalyzer(mockPhishingUrlRepository)
@@ -201,5 +202,25 @@ class HybridScamDetectorTest {
 
         assertTrue("스캠으로 판정", result.isScam)
         assertTrue("높은 신뢰도", result.confidence > 0.6f)
+    }
+
+    @Test
+    fun `useLLM false 면 LLM 호출 안함`() = runBlocking {
+        val text = "입금 부탁드립니다. 계좌번호 보내드릴게요."
+
+        hybridScamDetector.analyze(text, useLLM = false)
+
+        coVerify(exactly = 0) { mockLlmScamDetector.analyze(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `LLM 사용 가능하지만 트리거 조건 미충족 시 호출 안함`() = runBlocking {
+        coEvery { mockLlmScamDetector.isAvailable() } returns true
+
+        val text = "내일 점심 같이 먹을래? 12시에 학교 앞에서 만나자"
+
+        hybridScamDetector.analyze(text, useLLM = true)
+
+        coVerify(exactly = 0) { mockLlmScamDetector.analyze(any(), any(), any(), any(), any()) }
     }
 }

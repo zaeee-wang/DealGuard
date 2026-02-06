@@ -19,26 +19,18 @@ class KeywordMatcher @Inject constructor() {
     /**
      * 키워드 가중치 체계
      *
-     * 가중치 설계 원칙:
-     * - CRITICAL 2개 이상 또는 CRITICAL+HIGH 조합 시 스캠 판정
-     * - 단일 키워드로는 스캠 판정 불가 (오탐 방지)
+     * 테스트 단계에서는 LLM/오버레이 동작을 쉽게 확인하기 위해
+     * 기본 가중치를 다소 공격적으로 높여둔다.
+     * (실 서비스 단계에서 다시 보수적으로 조정 예정)
      *
-     * CRITICAL (0.4f): 직접적 금전/인증 요구, 기관 사칭
-     *   - 예: "계좌번호 알려주세요", "OTP번호 보내세요"
-     *   - 2개 조합 시 0.8 (스캠 확정)
-     *
-     * HIGH (0.25f): 간접적 금전 관련, 피싱 키워드
-     *   - 예: "급전", "대출", "인증번호"
-     *   - CRITICAL과 조합 시 0.65 (스캠 판정)
-     *
-     * MEDIUM (0.15f): 의심스러운 표현
-     *   - 예: "당첨", "환급", "무료"
-     *   - 단독으로는 스캠 판정 불가, 보조 지표로 활용
+     * CRITICAL (0.6f): 직접적 금전/인증 요구, 기관 사칭
+     * HIGH (0.4f): 간접적 금전 관련, 피싱 키워드
+     * MEDIUM (0.25f): 의심스러운 표현
      */
     private enum class KeywordWeight(val weight: Float) {
-        CRITICAL(0.4f),
-        HIGH(0.25f),
-        MEDIUM(0.15f)
+        CRITICAL(0.6f),
+        HIGH(0.4f),
+        MEDIUM(0.25f)
     }
 
     // 가중치별 키워드 맵
@@ -252,16 +244,14 @@ class KeywordMatcher @Inject constructor() {
         val patternCount = detectedPatterns.size
 
         if (detectedPatterns.isNotEmpty()) {
-            // 조건: 2개 이상 패턴 OR (1개 패턴 + 키워드 존재)
-            if (patternCount >= 2 || (patternCount >= 1 && hasKeywords)) {
-                val patternConfidence = detectedPatterns.sumOf { it.weight.toDouble() }.toFloat()
-                totalConfidence += patternConfidence
+            // 테스트 단계에서는 단일 패턴도 신뢰도에 포함하여
+            // 민감도를 높인다. (실서비스 시 조건 재조정 권장)
+            val patternConfidence = detectedPatterns.sumOf { it.weight.toDouble() }.toFloat()
+            totalConfidence += patternConfidence
 
-                detectedPatterns.forEach { pattern ->
-                    reasons.add("${pattern.description} 감지")
-                }
+            detectedPatterns.forEach { pattern ->
+                reasons.add("${pattern.description} 감지")
             }
-            // else: 격리된 단일 패턴은 신뢰도에 포함하지 않음 (오탐 방지)
         }
 
         // 3. 조합 패턴 보너스 (여러 카테고리 동시 발견 시 위험도 증가)

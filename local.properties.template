@@ -9,6 +9,7 @@
 sdk.dir=/path/to/your/Android/sdk
 
 # API Keys
+# Generate in this URL : https://aistudio.google.com/api-keys 
 THECHEAT_API_KEY=your_api_key_here
 
 # Gemini API 설정 (LLM 스캠 분석용)

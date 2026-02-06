@@ -1,8 +1,8 @@
 ---
 name: build-error-resolver
 description: Android build and Kotlin compilation error resolution specialist. Use PROACTIVELY when Gradle build fails or compilation errors occur. Fixes build errors only with minimal diffs, no architectural edits. Focuses on getting the build green quickly.
-tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: opus
+tools: ["Read", "Write", "Edit", "sonnet-4.5Bash", "Grep", "Glob"]
+model: sonnet-4.5
 ---
 
 # Build Error Resolver

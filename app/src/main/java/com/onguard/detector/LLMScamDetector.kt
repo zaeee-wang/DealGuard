@@ -18,7 +18,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 외부 LLM(Google Gemini 2.5 Flash)을 사용한 스캠 분석기.
+ * 외부 LLM(Google Gemini 1.5 Flash)을 사용한 스캠 분석기.
  *
  * 룰 기반 탐지 결과를 바탕으로 프롬프트를 구성하고,
  * Gemini API의 무료 티어 범위 내에서만 호출하여
@@ -40,9 +40,6 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
 
         private var callsToday: Int = 0
         private var lastDate: LocalDate = LocalDate.now()
-
-        // LRU 캐시 최대 크기 (스크롤 시 중복 호출 방지)
-        private const val CACHE_MAX_SIZE = 100
     }
 
     private val client: OkHttpClient by lazy {
@@ -50,20 +47,9 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
             .build()
     }
 
-    /**
-     * LRU 캐시: 최근 분석한 텍스트 해시 → 분석 결과
-     *
-     * - 스크롤 시 같은 메시지가 다시 보여도 API 재호출 방지
-     * - LinkedHashMap(accessOrder=true) 사용으로 LRU 동작
-     * - 최대 CACHE_MAX_SIZE(100)개 유지
-     */
-    private val analysisCache = object : LinkedHashMap<Int, ScamAnalysis>(
-        CACHE_MAX_SIZE + 1, 0.75f, true  // accessOrder=true for LRU
-    ) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, ScamAnalysis>?): Boolean {
-            return size > CACHE_MAX_SIZE
-        }
-    }
+    // 같은 대화 조각에 대한 중복 호출 방지를 위한 간단한 캐시
+    private var lastTextHash: Int? = null
+    private var lastResult: ScamAnalysis? = null
 
     /**
      * LLM 사용 가능 여부를 반환한다.
@@ -126,20 +112,14 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
 
         val contextForHash = (recentContext.ifBlank { originalText })
         val hash = contextForHash.hashCode()
-
-        // LRU 캐시 확인: 스크롤 시 같은 메시지 재호출 방지
-        synchronized(analysisCache) {
-            analysisCache[hash]?.let { cached ->
-                DebugLog.debugLog(TAG) {
-                    "step=analyze cache_hit hash=$hash cacheSize=${analysisCache.size}"
-                }
-                return@withContext cached
-            }
+        if (hash == lastTextHash && lastResult != null) {
+            DebugLog.debugLog(TAG) { "step=analyze cache_hit" }
+            return@withContext lastResult
         }
 
         val masked = DebugLog.maskText(contextForHash, maxLen = 60)
         DebugLog.debugLog(TAG) {
-            "step=analyze cache_miss hash=$hash input_length=${contextForHash.length} masked=\"$masked\" ruleReasons=${ruleReasons.size} keywords=${detectedKeywords.size}"
+            "step=analyze input length=${contextForHash.length} masked=\"$masked\" ruleReasons=${ruleReasons.size} keywords=${detectedKeywords.size}"
         }
 
         val prompt = buildPrompt(
@@ -157,13 +137,8 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
                 "step=analyze done hasResult=${analysis != null}"
             }
             if (analysis != null) {
-                // LRU 캐시에 저장
-                synchronized(analysisCache) {
-                    analysisCache[hash] = analysis
-                    DebugLog.debugLog(TAG) {
-                        "step=analyze cached hash=$hash cacheSize=${analysisCache.size}"
-                    }
-                }
+                lastTextHash = hash
+                lastResult = analysis
             }
             analysis
         } catch (e: Exception) {
@@ -220,7 +195,7 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
 
         return """
             시스템: 당신은 피싱/사기 메시지를 분석하는 한국어 보안 전문가 "OnGuard"입니다.
-
+            
             [최근 대화]
             $recentBlock
 
@@ -244,7 +219,7 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
     }
 
     /**
-     * Gemini 2.5 Flash REST API 호출.
+     * Gemini 1.5 Flash REST API 호출.
      *
      * - contents[0].parts[0].text 에 전체 프롬프트 전달
      * - candidates[0].content.parts[..].text 를 모두 이어붙여 반환

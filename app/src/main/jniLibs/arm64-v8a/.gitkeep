@@ -1,0 +1,4 @@
+// Placeholder file to keep the jniLibs/arm64-v8a directory in version control.
+// Place the following sherpa-onnx native libraries here when built or downloaded:
+// - libonnxruntime.so
+// - libsherpa-onnx-jni.so
