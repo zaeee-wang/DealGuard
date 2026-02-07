@@ -99,14 +99,16 @@ fun ChartStatCard(
 ) {
     Surface(
         modifier = modifier
-            .height(110.dp)
+            .height(130.dp) // 110dp -> 130dp로 증가
             .fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.3f),
+        color = Color.White.copy(alpha = 0.5f),
         shadowElevation = 0.dp
     ) {
         Column(
-            modifier = Modifier.padding(16.dp).fillMaxSize(),
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 14.dp) // 패딩 조정
+                .fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
