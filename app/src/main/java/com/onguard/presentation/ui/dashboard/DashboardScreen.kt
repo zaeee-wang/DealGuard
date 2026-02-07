@@ -183,7 +183,7 @@ fun DashboardScreen(
                         .height(28.dp) // 로고 크기에 맞춰 축소
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Start
+                    horizontalArrangement = Arrangement.SpaceBetween // 양쪽 정렬
                 ) {
                     // 텍스트가 포함된 로고 이미지 사용
                     androidx.compose.foundation.Image(
@@ -196,6 +196,26 @@ fun DashboardScreen(
                                 translationY = logoTranslationY.toPx() // 위로 슬라이드
                             }
                     )
+                    
+                    // 설정 아이콘 버튼
+                    IconButton(
+                        onClick = { 
+                            // TODO: 설정 화면으로 이동
+                        },
+                        modifier = Modifier
+                            .size(28.dp)
+                            .graphicsLayer {
+                                alpha = logoAlpha // 로고와 같이 사라짐
+                                translationY = logoTranslationY.toPx()
+                            }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "설정",
+                            tint = TextWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
 
