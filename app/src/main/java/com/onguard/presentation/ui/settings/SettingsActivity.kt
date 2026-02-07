@@ -3,7 +3,7 @@ package com.onguard.presentation.ui.settings
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import com.onguard.presentation.ui.theme.OnGuardTheme
+import com.onguard.presentation.theme.OnGuardTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
