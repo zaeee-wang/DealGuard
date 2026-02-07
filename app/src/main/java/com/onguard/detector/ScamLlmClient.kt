@@ -11,6 +11,12 @@ import com.onguard.domain.model.ScamAnalysis
 interface ScamLlmClient {
 
     /**
+     * LLM 사용 가능 여부를 반환한다.
+     * false이면 HybridScamDetector가 rule-only 또는 API로 폴백한다.
+     */
+    fun isAvailable(): Boolean
+
+    /**
      * 스캠 분석 요청을 수행한다.
      *
      * @param request LLM 분석에 필요한 전체 컨텍스트

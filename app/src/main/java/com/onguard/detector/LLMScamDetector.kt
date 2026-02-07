@@ -58,7 +58,7 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
      * - GEMINI_API_KEY 존재 여부
      * - 간단한 일일 호출 상한 (BuildConfig.GEMINI_MAX_CALLS_PER_DAY)
      */
-    fun isAvailable(): Boolean {
+    override fun isAvailable(): Boolean {
         if (!BuildConfig.ENABLE_LLM) {
             DebugLog.warnLog(TAG) { "step=isAvailable false reason=ENABLE_LLM_disabled" }
             return false

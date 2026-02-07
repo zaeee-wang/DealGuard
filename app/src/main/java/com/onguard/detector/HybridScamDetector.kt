@@ -38,6 +38,7 @@ class HybridScamDetector @Inject constructor(
     private val keywordMatcher: KeywordMatcher,
     private val urlAnalyzer: UrlAnalyzer,
     private val phoneAnalyzer: PhoneAnalyzer,
+    private val scamLlmClient: ScamLlmClient
     private val accountAnalyzer: AccountAnalyzer,
     private val llmScamDetector: LLMScamDetector
 ) {
@@ -168,7 +169,7 @@ class HybridScamDetector @Inject constructor(
         val hasScamAccount = accountResult.hasFraudAccounts
 
         val shouldUseLLM = useLLM &&
-                llmScamDetector.isAvailable() &&
+                scamLlmClient.isAvailable() &&
                 ruleConfidence in LLM_TRIGGER_LOW..LLM_TRIGGER_HIGH &&
                 (hasMoneyKeyword || hasUrl || hasUrgencyKeyword || hasScamPhone || hasScamAccount)
 
@@ -190,6 +191,7 @@ class HybridScamDetector @Inject constructor(
                 ruleReasons = combinedReasons,
                 detectedKeywords = keywordResult.detectedKeywords
             )
+            val llmResult = scamLlmClient.analyze(request)
 
             if (llmResult != null) {
                 return combineResults(
@@ -203,7 +205,7 @@ class HybridScamDetector @Inject constructor(
             }
         } else if (!useLLM) {
             DebugLog.debugLog(TAG) { "step=llm_bypass reason=useLLM_false ruleConfidence=$ruleConfidence" }
-        } else if (!llmScamDetector.isAvailable()) {
+        } else if (!scamLlmClient.isAvailable()) {
             DebugLog.warnLog(TAG) { "step=llm_fallback reason=llm_not_available ruleConfidence=$ruleConfidence" }
         } else {
             DebugLog.debugLog(TAG) {

@@ -131,6 +131,9 @@ dependencies {
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // MediaPipe LLM Inference (on-device Gemma)
+    implementation("com.google.mediapipe:tasks-genai:0.10.27")
+
     // WorkManager for periodic tasks
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.hilt:hilt-work:1.2.0")
