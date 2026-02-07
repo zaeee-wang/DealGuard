@@ -568,8 +568,20 @@ fun DashboardScreen(
                                         Spacer(modifier = Modifier.height(40.dp))
                                     }
                                     DashboardTab.LOG -> {
-                                        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                                            Text("로그 기능은 준비 중입니다.")
+                                        if (state.recentAlerts.isEmpty()) {
+                                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                                Text("최근 알림이 없습니다.", color = TextSecondary)
+                                            }
+                                        } else {
+                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                state.recentAlerts.forEachIndexed { index, alert ->
+                                                    // 순차적 애니메이션 적용
+                                                    StaggeredAnimatedItem(delay = index * 50) {
+                                                        RecentAlertItem(alert = alert)
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(40.dp))
+                                            }
                                         }
                                     }
                                 }

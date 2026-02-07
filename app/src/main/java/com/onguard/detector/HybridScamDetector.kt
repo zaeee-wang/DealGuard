@@ -38,7 +38,7 @@ class HybridScamDetector @Inject constructor(
     private val keywordMatcher: KeywordMatcher,
     private val urlAnalyzer: UrlAnalyzer,
     private val phoneAnalyzer: PhoneAnalyzer,
-    private val scamLlmClient: ScamLlmClient
+    private val scamLlmClient: ScamLlmClient,
     private val accountAnalyzer: AccountAnalyzer,
     private val llmScamDetector: LLMScamDetector
 ) {
@@ -191,7 +191,7 @@ class HybridScamDetector @Inject constructor(
                 ruleReasons = combinedReasons,
                 detectedKeywords = keywordResult.detectedKeywords
             )
-            val llmResult = scamLlmClient.analyze(request)
+
 
             if (llmResult != null) {
                 return combineResults(
@@ -280,10 +280,10 @@ class HybridScamDetector @Inject constructor(
         hasUrlIssues: Boolean
     ): ScamAnalysis {
         // Rule-based에서 스캠 유형 추론
-        val scamType = ScamTypeInferrer.inferScamType(reasons)
+        val scamType = inferScamType(reasons)
 
         // Rule-based 경고 메시지 생성
-        val warningMessage = RuleBasedWarningGenerator.generateWarning(scamType, confidence)
+        val warningMessage = generateRuleBasedWarning(scamType, confidence)
 
         return ScamAnalysis(
             isScam = confidence > FINAL_SCAM_THRESHOLD,
