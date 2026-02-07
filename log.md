@@ -4,6 +4,44 @@
 
 ---
 
+## [0.4.2] - 2026-02-07
+
+### Added
+
+#### PiiMasker.kt - 개인정보 마스킹 유틸리티 (Security Critical)
+- **LLM 전송 전 PII 마스킹** (P0)
+  - AccessibilityService 데이터가 외부 LLM(Gemini)으로 유출되지 않도록 보호
+  - security-reviewer.md CRITICAL 위반사항 해결
+- **마스킹 대상**
+  - 전화번호: 부분 마스킹 (`010-****-5678`) - 대역 정보(070/050) 유지
+  - 계좌번호: 완전 마스킹 (`[계좌번호]`)
+  - 주민등록번호: 완전 마스킹 (`[주민번호]`)
+  - 여권번호: 완전 마스킹 (`[여권번호]`)
+
+### Changed
+
+#### HybridScamDetector.kt - LLM 호출 시 마스킹 적용
+- `llmScamDetector.analyze()` 호출 전 `PiiMasker.mask()` 적용
+  - `originalText` → `PiiMasker.mask(text)`
+  - `recentContext` → `PiiMasker.mask(recentContext)`
+  - `currentMessage` → `PiiMasker.mask(currentMessage)`
+
+### Security
+- **AccessibilityService 데이터 보호**
+  - Rule-based/API 검사에서 정상 판정된 전화번호/계좌번호도 마스킹
+  - LLM은 마스킹된 텍스트로 스캠 판단 (PII 원본 노출 방지)
+
+### Test Scenarios
+```
+✅ "연락처: 010-1234-5678" → "연락처: 010-****-5678"
+✅ "전화: 070-1234-5678" → "전화: 070-****-5678" (대역 정보 유지)
+✅ "입금: 110-123-456789" → "입금: [계좌번호]"
+✅ "주민번호 901234-1234567" → "주민번호 [주민번호]"
+✅ 일반 텍스트 → 변경 없음
+```
+
+---
+
 ## [0.4.1] - 2026-02-07
 
 ### Added

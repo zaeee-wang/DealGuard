@@ -4,6 +4,7 @@ import com.onguard.domain.model.DetectionMethod
 import com.onguard.domain.model.ScamAnalysis
 import com.onguard.domain.model.ScamType
 import com.onguard.util.DebugLog
+import com.onguard.util.PiiMasker
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
@@ -161,10 +162,14 @@ class HybridScamDetector @Inject constructor(
                         "hasMoneyKeyword=$hasMoneyKeyword hasUrgencyKeyword=$hasUrgencyKeyword hasUrl=$hasUrl hasScamPhone=$hasScamPhone"
             }
 
+            // PII 마스킹 적용 (전화번호/계좌번호/주민번호 보호)
+            // - AccessibilityService 데이터가 외부 LLM으로 유출되지 않도록 보호
+            // - 전화번호: 부분 마스킹 (010-****-5678) - 대역 정보 유지
+            // - 계좌번호/주민번호: 완전 마스킹 ([계좌번호], [주민번호])
             val llmResult = llmScamDetector.analyze(
-                originalText = text,
-                recentContext = recentContext,
-                currentMessage = currentMessage,
+                originalText = PiiMasker.mask(text),
+                recentContext = PiiMasker.mask(recentContext),
+                currentMessage = PiiMasker.mask(currentMessage),
                 ruleReasons = combinedReasons,
                 detectedKeywords = keywordResult.detectedKeywords
             )
