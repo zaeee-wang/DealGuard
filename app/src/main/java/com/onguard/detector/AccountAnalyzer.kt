@@ -27,8 +27,8 @@ class AccountAnalyzer @Inject constructor(
         private const val SCORE_DB_REGISTERED = 0.95f
         /** 다수 신고 (5건 이상) 추가 가중치 */
         private const val SCORE_MULTIPLE_REPORTS = 0.3f
-        /** 계좌번호 자체 존재 (낮은 가중치) */
-        private const val SCORE_ACCOUNT_PRESENT = 0.05f
+        // REMOVED: SCORE_ACCOUNT_PRESENT - 패턴 감지만으로 위험도 추가하지 않음
+        // API에서 사기 계좌로 확인된 경우에만 위험도 반영
         /** 경찰청 API 유의미 신고 기준 (3건 이상) */
         private const val FRAUD_THRESHOLD = 3
     }
@@ -83,10 +83,8 @@ class AccountAnalyzer @Inject constructor(
                 return@forEach
             }
 
-            // 기본 점수: 계좌번호 존재
-            riskScore += SCORE_ACCOUNT_PRESENT
-
             // 경찰청 사기계좌 DB 조회
+            // 패턴 감지만으로는 위험도 추가하지 않음 - API에서 확인된 경우에만 반영
             // - count >= 3: 3건 이상 신고 = 유의미한 위험
             // - count >= 5: 다수 신고 = 추가 가중치
             try {
