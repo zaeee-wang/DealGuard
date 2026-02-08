@@ -75,6 +75,12 @@ class AccountAnalyzer @Inject constructor(
         var totalFraudCount = 0
 
         extractedAccounts.forEach { account ->
+            // 이미 최대 위험도에 도달한 경우 추가 분석 스킵 (최적화)
+            if (riskScore >= 1.0f) {
+                Log.d(TAG, "Max risk score reached, skipping remaining accounts")
+                return@forEach
+            }
+
             val normalizedAccount = normalizeAccount(account)
 
             // 계좌번호 유효성 검증 (10-14자리)
@@ -97,13 +103,13 @@ class AccountAnalyzer @Inject constructor(
                         // 3건 이상 신고: 사기 계좌로 판정
                         fraudAccounts.add(account)
                         totalFraudCount += fraudCount
-                        riskScore += SCORE_DB_REGISTERED
+                        riskScore = (riskScore + SCORE_DB_REGISTERED).coerceAtMost(1f)
                         reasons.add("경찰청 사기신고 계좌: ${maskAccount(account)} (${fraudCount}건)")
                         Log.w(TAG, "Fraud account detected: ${maskAccount(account)} (count=$fraudCount)")
 
                         // 다수 신고 (5건 이상): 추가 가중치
                         if (fraudCount >= 5) {
-                            riskScore += SCORE_MULTIPLE_REPORTS
+                            riskScore = (riskScore + SCORE_MULTIPLE_REPORTS).coerceAtMost(1f)
                             reasons.add("다수 사기 신고 이력 (${fraudCount}건)")
                         }
                     } else if (fraudCount > 0) {
@@ -122,7 +128,7 @@ class AccountAnalyzer @Inject constructor(
             extractedAccounts = extractedAccounts,
             fraudAccounts = fraudAccounts,
             reasons = reasons.distinct(),
-            riskScore = riskScore.coerceIn(0f, 1f),
+            riskScore = riskScore,  // 이미 중간에 coerceAtMost(1f) 적용됨
             totalFraudCount = totalFraudCount
         )
     }

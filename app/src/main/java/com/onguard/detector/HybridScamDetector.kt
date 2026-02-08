@@ -284,63 +284,6 @@ class HybridScamDetector @Inject constructor(
             suspiciousParts = detectedKeywords.take(3)  // 상위 3개 키워드
         )
     }
-
-    /**
-     * 규칙 기반 사유 문자열에서 [ScamType]을 추론한다.
-     *
-     * @param reasons 탐지 사유 목록 (키워드/패턴 설명)
-     * @return 추론된 [ScamType]
-     */
-    private fun inferScamType(reasons: List<String>): ScamType {
-        val reasonText = reasons.joinToString(" ")
-
-        return when {
-            reasonText.contains("투자") || reasonText.contains("수익") ||
-                    reasonText.contains("코인") || reasonText.contains("주식") -> ScamType.INVESTMENT
-
-            reasonText.contains("입금") || reasonText.contains("선결제") ||
-                    reasonText.contains("거래") || reasonText.contains("택배") -> ScamType.USED_TRADE
-
-            reasonText.contains("URL") || reasonText.contains("링크") ||
-                    reasonText.contains("피싱") -> ScamType.PHISHING
-
-            reasonText.contains("사칭") || reasonText.contains("기관") -> ScamType.IMPERSONATION
-
-            reasonText.contains("대출") -> ScamType.LOAN
-
-            else -> ScamType.UNKNOWN
-        }
-    }
-
-    /**
-     * Rule-based 전용 경고 메시지를 생성한다.
-     *
-     * @param scamType 스캠 유형
-     * @param confidence 신뢰도 (퍼센트 표시용)
-     * @return 사용자에게 표시할 한글 경고 문구
-     */
-    private fun generateRuleBasedWarning(scamType: ScamType, confidence: Float): String {
-        val confidencePercent = (confidence * 100).toInt()
-
-        return when (scamType) {
-            ScamType.INVESTMENT ->
-                "이 메시지는 투자 사기로 의심됩니다 (위험도 $confidencePercent%). 고수익을 보장하는 투자는 대부분 사기입니다."
-
-            ScamType.USED_TRADE ->
-                "중고거래 사기가 의심됩니다 (위험도 $confidencePercent%). 선입금을 요구하면 직거래로 진행하세요."
-
-            ScamType.PHISHING ->
-                "피싱 링크가 포함되어 있습니다 (위험도 $confidencePercent%). 의심스러운 링크를 클릭하지 마세요."
-
-            ScamType.IMPERSONATION ->
-                "사칭 사기가 의심됩니다 (위험도 $confidencePercent%). 공식 채널을 통해 확인하세요."
-
-            ScamType.LOAN ->
-                "대출 사기가 의심됩니다 (위험도 $confidencePercent%). 선수수료 요구는 불법입니다."
-
-            else ->
-                "사기 의심 메시지입니다 (위험도 $confidencePercent%). 주의하세요."
-        }
-    }
-
+    // Note: inferScamType() and generateRuleBasedWarning() removed
+    // → Use ScamTypeInferrer.inferScamType() and RuleBasedWarningGenerator.generateWarning() instead
 }

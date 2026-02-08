@@ -87,12 +87,18 @@ class PhoneAnalyzer @Inject constructor(
         var hasSuspiciousPrefix = false
 
         extractedPhones.forEach { phone ->
+            // 이미 최대 위험도에 도달한 경우 추가 분석 스킵 (최적화)
+            if (riskScore >= 1.0f) {
+                Log.d(TAG, "Max risk score reached, skipping remaining phones")
+                return@forEach
+            }
+
             val normalizedPhone = normalizePhone(phone)
 
             // 1. 의심 대역 확인 (로컬)
             if (suspiciousPrefixes.any { normalizedPhone.startsWith(it) }) {
                 hasSuspiciousPrefix = true
-                riskScore += SCORE_SUSPICIOUS_PREFIX
+                riskScore = (riskScore + SCORE_SUSPICIOUS_PREFIX).coerceAtMost(1f)
                 reasons.add("의심 전화번호 대역: ${phone.take(3)}xxx")
                 Log.d(TAG, "Suspicious prefix detected: $phone")
             }
@@ -103,27 +109,27 @@ class PhoneAnalyzer @Inject constructor(
                 result.getOrNull()?.let { response ->
                     if (response.totalCount > 0) {
                         scamPhones.add(phone)
-                        riskScore += SCORE_DB_REGISTERED
+                        riskScore = (riskScore + SCORE_DB_REGISTERED).coerceAtMost(1f)
                         reasons.add("Counter Scam 112 DB 등록 번호: $phone")
                         Log.w(TAG, "Scam phone detected: $phone (total=${response.totalCount})")
 
                         // 보이스피싱 이력
                         if (response.voiceCount > 0) {
                             totalVoiceCount += response.voiceCount
-                            riskScore += SCORE_VOICE_PHISHING
+                            riskScore = (riskScore + SCORE_VOICE_PHISHING).coerceAtMost(1f)
                             reasons.add("보이스피싱 신고 ${response.voiceCount}건")
                         }
 
                         // 스미싱 이력
                         if (response.smsCount > 0) {
                             totalSmsCount += response.smsCount
-                            riskScore += SCORE_SMS_PHISHING
+                            riskScore = (riskScore + SCORE_SMS_PHISHING).coerceAtMost(1f)
                             reasons.add("스미싱 신고 ${response.smsCount}건")
                         }
 
                         // 다수 신고
                         if (response.totalCount >= 5) {
-                            riskScore += SCORE_MULTIPLE_REPORTS
+                            riskScore = (riskScore + SCORE_MULTIPLE_REPORTS).coerceAtMost(1f)
                             reasons.add("다수 신고 이력 (${response.totalCount}건)")
                         }
                     }
@@ -137,7 +143,7 @@ class PhoneAnalyzer @Inject constructor(
             extractedPhones = extractedPhones,
             scamPhones = scamPhones,
             reasons = reasons.distinct(),
-            riskScore = riskScore.coerceIn(0f, 1f),
+            riskScore = riskScore,  // 이미 중간에 coerceAtMost(1f) 적용됨
             voicePhishingCount = totalVoiceCount,
             smsPhishingCount = totalSmsCount,
             isSuspiciousPrefix = hasSuspiciousPrefix

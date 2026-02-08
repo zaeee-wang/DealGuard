@@ -87,7 +87,8 @@ class UrlAnalyzer @Inject constructor(
      */
     suspend fun analyze(text: String): UrlAnalysisResult {
         val urls = extractUrls(text)
-        val suspiciousUrls = mutableListOf<String>()
+        // Set으로 중복 URL 자동 제거 (같은 URL이 여러 조건에 매칭되어도 한 번만 저장)
+        val suspiciousUrls = mutableSetOf<String>()
         val reasons = mutableListOf<String>()
         var riskScore = 0f
 
@@ -164,7 +165,7 @@ class UrlAnalyzer @Inject constructor(
 
         return UrlAnalysisResult(
             urls = urls,
-            suspiciousUrls = suspiciousUrls.distinct(),
+            suspiciousUrls = suspiciousUrls.toList(),  // Set → List 변환 (중복 이미 제거됨)
             reasons = reasons.distinct(),
             riskScore = riskScore.coerceIn(0f, 1f)
         )
@@ -200,6 +201,18 @@ class UrlAnalyzer @Inject constructor(
         }
     }
 
+    /**
+     * 공식 은행 도메인 여부 확인 (강화된 검증)
+     *
+     * 단순 contains() 대신 도메인 끝부분을 정확히 매칭하여
+     * 서브도메인 속임 공격을 방지합니다.
+     *
+     * 예시:
+     * - kbstar.com → 공식 (매칭)
+     * - www.kbstar.com → 공식 (서브도메인 허용)
+     * - evil.kbstar.com.fake.com → 사칭 (매칭 안됨)
+     * - kbstar.com.evil.com → 사칭 (매칭 안됨)
+     */
     private fun isOfficialBankDomain(url: String, bankKeyword: String): Boolean {
         // 공식 도메인 매핑
         val officialDomains = mapOf(
@@ -208,7 +221,7 @@ class UrlAnalyzer @Inject constructor(
             "shinhan" to listOf("shinhan.com", "shinhansec.com", "shinhancard.com"),
             "woori" to listOf("wooribank.com"),
             "hana" to listOf("hanabank.com", "hanafn.com"),
-            "nh" to listOf("nonghyup.com", "banking.nonghyup.com"),
+            "nh" to listOf("nonghyup.com"),
             "nonghyup" to listOf("nonghyup.com"),
             "ibk" to listOf("ibk.co.kr"),
             "kakaobank" to listOf("kakaobank.com"),
@@ -217,8 +230,14 @@ class UrlAnalyzer @Inject constructor(
         )
 
         val domains = officialDomains[bankKeyword] ?: return false
+        val urlDomain = extractDomain(url).lowercase()
+
         return domains.any { officialDomain ->
-            url.contains(officialDomain, ignoreCase = true)
+            val officialLower = officialDomain.lowercase()
+            // 정확히 일치하거나, 서브도메인으로 끝나야 함
+            // 예: "www.kbstar.com" endsWith ".kbstar.com" 또는 == "kbstar.com"
+            urlDomain == officialLower ||
+                urlDomain.endsWith(".$officialLower")
         }
     }
 }

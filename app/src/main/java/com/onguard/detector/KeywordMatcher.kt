@@ -256,12 +256,4 @@ class KeywordMatcher @Inject constructor() {
             detectionMethod = DetectionMethod.RULE_BASED
         )
     }
-
-    /**
-     * [analyze]와 동일. 하위 호환용 별칭.
-     *
-     * @param text 분석할 텍스트
-     * @return [ScamAnalysis]
-     */
-    fun match(text: String): ScamAnalysis = analyze(text)
 }

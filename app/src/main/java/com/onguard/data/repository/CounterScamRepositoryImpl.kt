@@ -100,10 +100,21 @@ class CounterScamRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w(TAG, "API call failed for $normalizedPhone: ${e.message}")
-            // 세션 만료일 수 있으므로 재초기화 플래그 설정
+            // 세션 만료일 수 있으므로 재초기화 플래그 설정 (thread-safe)
+            invalidateSession()
+            // API 실패를 명시적으로 반환 - 호출자가 try-catch로 처리
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 세션 무효화 (thread-safe)
+     *
+     * API 호출 실패 시 세션 만료일 수 있으므로 세션을 무효화합니다.
+     */
+    private suspend fun invalidateSession() {
+        sessionMutex.withLock {
             sessionInitialized = false
-            // Graceful degradation: API 실패 시 빈 결과 반환
-            Result.success(CounterScamResponse())
         }
     }
 

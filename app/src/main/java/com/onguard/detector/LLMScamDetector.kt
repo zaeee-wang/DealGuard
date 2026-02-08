@@ -14,6 +14,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,8 +40,17 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
         private const val GEMINI_BASE_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
-        private var callsToday: Int = 0
-        private var lastDate: LocalDate = LocalDate.now()
+        /**
+         * Thread-safe 일일 호출 카운터.
+         * AtomicInteger로 동시 접근 시에도 안전하게 증가/조회 가능.
+         */
+        private val callsToday = AtomicInteger(0)
+
+        /**
+         * Thread-safe 날짜 저장.
+         * 날짜가 바뀌면 callsToday를 리셋하기 위해 compareAndSet 사용.
+         */
+        private val lastDate = AtomicReference(LocalDate.now())
     }
 
     private val client: OkHttpClient by lazy {
@@ -47,8 +58,14 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
             .build()
     }
 
-    // 같은 대화 조각에 대한 중복 호출 방지를 위한 간단한 캐시
+    /**
+     * 같은 대화 조각에 대한 중복 호출 방지를 위한 간단한 캐시.
+     * @Volatile로 스레드 간 가시성 보장. 최악의 경우에도 추가 API 호출만 발생.
+     */
+    @Volatile
     private var lastTextHash: Int? = null
+
+    @Volatile
     private var lastResult: ScamAnalysis? = null
 
     /**
@@ -68,22 +85,26 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
             return false
         }
 
-        // 날짜가 바뀌면 카운터 리셋
+        // 날짜가 바뀌면 카운터 리셋 (thread-safe)
         val today = LocalDate.now()
-        if (today != lastDate) {
-            lastDate = today
-            callsToday = 0
+        val currentLastDate = lastDate.get()
+        if (today != currentLastDate) {
+            // compareAndSet으로 한 스레드만 리셋 성공
+            if (lastDate.compareAndSet(currentLastDate, today)) {
+                callsToday.set(0)
+            }
         }
 
         val maxCallsPerDay = BuildConfig.GEMINI_MAX_CALLS_PER_DAY.coerceAtLeast(0)
-        val available = callsToday < maxCallsPerDay
+        val currentCalls = callsToday.get()
+        val available = currentCalls < maxCallsPerDay
         if (!available) {
             DebugLog.warnLog(TAG) {
-                "step=isAvailable false reason=quota_exceeded callsToday=$callsToday maxCallsPerDay=$maxCallsPerDay"
+                "step=isAvailable false reason=quota_exceeded callsToday=$currentCalls maxCallsPerDay=$maxCallsPerDay"
             }
         } else {
             DebugLog.debugLog(TAG) {
-                "step=isAvailable true callsToday=$callsToday maxCallsPerDay=$maxCallsPerDay"
+                "step=isAvailable true callsToday=$currentCalls maxCallsPerDay=$maxCallsPerDay"
             }
         }
         return available
@@ -244,11 +265,11 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
             return null
         }
 
-        // 간단한 일일 호출 카운터 증가
-        callsToday += 1
+        // Thread-safe 일일 호출 카운터 증가
+        val currentCount = callsToday.incrementAndGet()
         val maxCallsPerDay = BuildConfig.GEMINI_MAX_CALLS_PER_DAY.coerceAtLeast(0)
         DebugLog.debugLog(TAG) {
-            "step=call_quota_counter callsToday=$callsToday maxCallsPerDay=$maxCallsPerDay"
+            "step=call_quota_counter callsToday=$currentCount maxCallsPerDay=$maxCallsPerDay"
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
