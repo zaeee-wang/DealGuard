@@ -117,21 +117,42 @@ class FloatingControlService : Service() {
             }
         }
 
-        // 2. 주기적 보정: 애니메이션이나 연산 지연으로 인한 미세한 시간 차이 정기적 보정 (1초)
+        // 2. 주기적 보정 및 권한 감시: 1초마다 보정하며 권한 상태 변화를 체크하여 UI 즉시 반영
         safetySyncJob = serviceScope.launch {
+            var lastAccessibilityState: Boolean? = null
+            var lastOverlayState: Boolean? = null
+            
             while (true) {
                 kotlinx.coroutines.delay(1000)
+                
+                // 권한 상태 실시간 체크
+                val isAccessibilityEnabled = isAccessibilityServiceEnabled(this@FloatingControlService, ScamDetectionAccessibilityService::class.java)
+                val isOverlayEnabled = Settings.canDrawOverlays(this@FloatingControlService)
+                
+                // 권한 상실 시 자동 탐지 중지 로직 (접근성 권한 필수)
+                if (!isAccessibilityEnabled && currentSettings.isDetectionEnabled) {
+                    Log.w(TAG, "Accessibility permission revoked while active. Auto-disabling detection.")
+                    detectionSettingsStore.setDetectionEnabled(false)
+                }
+
+                // 권한 상태가 변경되었을 때만 UI 즉시 갱신 (아이콘 색상 등 반영)
+                if (isAccessibilityEnabled != lastAccessibilityState || isOverlayEnabled != lastOverlayState) {
+                    lastAccessibilityState = isAccessibilityEnabled
+                    lastOverlayState = isOverlayEnabled
+                    updateUIState(currentSettings)
+                }
+
+                // 타이머 시간 오차 보정
                 if (isServiceActive || isServicePaused) {
                     val correctedBase = currentSettings.calculateChronometerBase()
                     
-                    // 지연으로 인한 미세 오차(1초 미만)는 무시하고, 1초 이상 차이 날 때만 보정
                     expandedView?.findViewById<Chronometer>(R.id.timer)?.let { 
-                        if (kotlin.math.abs(it.base - correctedBase) > 500) {
+                        if (abs(it.base - correctedBase) > 500) {
                             it.base = correctedBase
                         }
                     }
                     collapsedView?.findViewById<Chronometer>(R.id.timer_collapsed)?.let {
-                        if (kotlin.math.abs(it.base - correctedBase) > 500) {
+                        if (abs(it.base - correctedBase) > 500) {
                             it.base = correctedBase
                         }
                     }

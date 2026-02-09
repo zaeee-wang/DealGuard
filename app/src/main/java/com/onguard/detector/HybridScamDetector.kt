@@ -268,10 +268,10 @@ class HybridScamDetector @Inject constructor(
         hasUrlIssues: Boolean
     ): ScamAnalysis {
         // Rule-based에서 스캠 유형 추론
-        val scamType = inferScamType(reasons)
+        val scamType = ScamTypeInferrer.inferScamType(reasons)
 
         // Rule-based 경고 메시지 생성
-        val warningMessage = generateRuleBasedWarning(scamType, confidence)
+        val warningMessage = RuleBasedWarningGenerator.generateWarning(scamType, confidence)
 
         return ScamAnalysis(
             isScam = confidence > FINAL_SCAM_THRESHOLD,
@@ -284,6 +284,4 @@ class HybridScamDetector @Inject constructor(
             suspiciousParts = detectedKeywords.take(3)  // 상위 3개 키워드
         )
     }
-    // Note: inferScamType() and generateRuleBasedWarning() removed
-    // → Use ScamTypeInferrer.inferScamType() and RuleBasedWarningGenerator.generateWarning() instead
 }
