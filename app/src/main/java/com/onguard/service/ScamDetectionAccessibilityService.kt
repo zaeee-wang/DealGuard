@@ -267,6 +267,8 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                 // 탐지 활성화 시 시작 시간 기록 (최초 1회만)
                 if (settings.isDetectionEnabled && serviceStartTime == 0L) {
                     serviceStartTime = SystemClock.elapsedRealtime()
+                } else if (!settings.isDetectionEnabled) {
+                    serviceStartTime = 0L
                 }
                 
                 // 알림 업데이트
@@ -925,11 +927,12 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             builder.addAction(R.drawable.ic_action_end, "종료", getPendingIntent(ACTION_STOP))
         } else {
             // Active state
-            contentTitle = "OnGuard가 탐지중입니다."
-            builder.setContentTitle(contentTitle)
-            builder.setWhen(System.currentTimeMillis())
-            builder.setUsesChronometer(false)
-            builder.setShowWhen(true)
+            val remoteViews = RemoteViews(packageName, R.layout.view_notification_active_body)
+            remoteViews.setChronometer(R.id.notification_timer, serviceStartTime, null, true)
+            
+            builder.setContentTitle("OnGuard가 탐지중입니다.")
+            builder.setCustomBigContentView(remoteViews)
+            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
             
             builder.addAction(R.drawable.ic_action_pause, "일시정지", getPendingIntent(ACTION_PAUSE))
             builder.addAction(R.drawable.ic_action_end, "종료", getPendingIntent(ACTION_STOP))

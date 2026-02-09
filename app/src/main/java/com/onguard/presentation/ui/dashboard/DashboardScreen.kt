@@ -548,13 +548,13 @@ fun DashboardScreen(
                                         text = selectedTab.headerTitle,
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isDarkTheme) Color.White else Color.Black,
+                                        color = Color.Black,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Start
                                     )
                                     Text(
                                         text = selectedTab.subtitle,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary,
+                                        color = Color.Black.copy(alpha = 0.6f),
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Start
                                     )
                                 }
@@ -1031,7 +1031,7 @@ fun RiskRatioRow(title: String, ratio: Float, color: Color, iconRes: Int) {
                 percentage % 1 == 0f -> "${percentage.toInt()}%" // 정수로 떨어지는 경우도 소수점 제외 (선택 사항이나 깔끔하게)
                 else -> "${String.format("%.1f", percentage)}%"
             }
-            Text(formattedPercentage, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(formattedPercentage, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
         }
     }
 }
