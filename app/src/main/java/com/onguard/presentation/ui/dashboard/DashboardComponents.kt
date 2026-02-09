@@ -1,5 +1,3 @@
-// app/src/main/java/com/onguard/presentation/ui/dashboard/DashboardComponents.kt
-
 package com.onguard.presentation.ui.dashboard
 
 import androidx.compose.animation.animateColorAsState
@@ -37,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onguard.presentation.theme.*
 
-// ==== 1. 공통 카드 스타일 ====
 @Composable
 fun DashboardCard(
     modifier: Modifier = Modifier,
@@ -53,7 +50,7 @@ fun DashboardCard(
     )
 }
 
-// ==== 2. 상단 작은 통계 카드 (글래스모피즘) ====
+// Stat card for dashboard metrics
 @Composable
 fun SmallStatCard(
     title: String,
@@ -104,7 +101,7 @@ fun SmallStatCard(
     }
 }
 
-// ==== 3. 중간 차트 카드 (글래스모피즘) ====
+// Card with a small weekly chart
 @Composable
 fun ChartStatCard(
     title: String,
@@ -117,7 +114,7 @@ fun ChartStatCard(
 ) {
     Surface(
         modifier = modifier
-            .height(130.dp) // 110dp -> 130dp로 증가
+            .height(130.dp)
             .fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         color = Color.White.copy(alpha = 0.5f),
@@ -181,7 +178,6 @@ fun ChartStatCard(
     }
 }
 
-// 자동 폰트 크기 조절 텍스트 컴포저블
 @Composable
 fun AutoResizedText(
     text: String,
@@ -222,7 +218,6 @@ fun AutoResizedText(
     )
 }
 
-// 주간 빈도 차트 (7일)
 @Composable
 fun WeeklyFrequencyChart(
     data: List<Int>, // 0:오늘 ~ 6:6일전
@@ -271,7 +266,6 @@ fun WeeklyFrequencyChart(
     }
 }
 
-// ==== 4. 탭 바 컴포넌트 ====
 @Composable
 fun DashboardTabBar(
     selectedTab: DashboardTab,
@@ -284,7 +278,6 @@ fun DashboardTabBar(
             .padding(vertical = 8.dp)
             .height(64.dp)
     ) {
-        // 1. 메인 글래스 패널 (알약 모양) - Dark Glass Theme
         Surface(
             modifier = Modifier.fillMaxSize(),
             shape = CircleShape,
@@ -302,7 +295,6 @@ fun DashboardTabBar(
             ),
             shadowElevation = 0.dp
         ) {
-            // 내부 안개 효과 (어두운 깊이감 + 노이즈 텍스처)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -316,7 +308,6 @@ fun DashboardTabBar(
                     )
                     .padding(6.dp)
             ) {
-                // *** 3. 슬라이딩 인디케이터 및 탭 아이템 구현 ***
                 BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -332,7 +323,6 @@ fun DashboardTabBar(
                         label = "indicatorOffset"
                     )
 
-                    // 3-1. 움직이는 인디케이터 (선택된 탭 배경)
                     Surface(
                         modifier = Modifier
                             .width(tabWidth)
@@ -343,7 +333,6 @@ fun DashboardTabBar(
                         shadowElevation = 4.dp // 그림자 추가로 입체감
                     ) {}
 
-                    // 3-2. 탭 아이템들 (Row로 배치)
                     Row(
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -403,7 +392,6 @@ fun TabItem(
     // Deprecated: DashboardTabBar 내부로 로직 통합됨
 }
 
-// 탭 정의
 enum class DashboardTab(
     val tabName: String,        // 탭바에 표시될 짧은 이름
     val headerTitle: String,    // 상단 헤더에 표시될 제목
@@ -415,7 +403,6 @@ enum class DashboardTab(
     LOG("로그", "최근 탐지 기록", "실시간 알림 목록", R.drawable.ic_log)
 }
 
-// ==== 5. 하단 상세 위험 카드 ====
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailedRiskCard(
@@ -442,7 +429,7 @@ fun DetailedRiskCard(
                 androidx.compose.foundation.Image(
                     painter = painterResource(id = iconRes),
                     contentDescription = null,
-                    modifier = Modifier.size(24.dp) // 22dp -> 24dp (조금 키움)
+                    modifier = Modifier.size(24.dp)
                 )
             }
 
@@ -607,7 +594,6 @@ fun DetailedRiskCard(
 }
 
 
-// ==== 보호 상태 배지 (글래스모피즘) ====
 @Composable
 fun ProtectionStatusBadge(
     isProtected: Boolean,
@@ -709,7 +695,6 @@ fun RecentAlertSkeleton() {
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon Skeleton
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -720,7 +705,6 @@ fun RecentAlertSkeleton() {
         Spacer(modifier = Modifier.width(16.dp))
         
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Title Skeleton
             Box(
                 modifier = Modifier
                     .width(120.dp)
@@ -728,7 +712,6 @@ fun RecentAlertSkeleton() {
                     .clip(RoundedCornerShape(4.dp))
                     .background(Color.Gray.copy(alpha = 0.2f))
             )
-            // Message Skeleton
             Box(
                 modifier = Modifier
                     .width(200.dp)

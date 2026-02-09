@@ -1,5 +1,3 @@
-//app/src/main/java/com/onguard/presentation/ui/dashboard/DashboardScreen.kt
-
 package com.onguard.presentation.ui.dashboard
 
 import androidx.compose.animation.*
@@ -12,8 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.rememberScrollState
@@ -60,24 +56,19 @@ fun DashboardScreen(
     state: DashboardUiState = DashboardUiState(),
     viewModel: MainViewModel? = null
 ) {
-    // Context for navigation
     val context = LocalContext.current
     
-    // 상태 정의
     var dashboardState by remember { mutableStateOf(DashboardState.INITIAL) }
     var selectedTab by remember { mutableStateOf(DashboardTab.RATIO) }
+    val isDarkTheme = isSystemInDarkTheme()
 
-    // 화면 높이 기반 계산
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
     val headerHeight = 22.dp
-    // 확장 높이는 헤더 공간과 상단 여백을 고려하여 설정
     val expandedHeight = screenHeight - 120.dp 
 
-    // 애니메이션 값 설정
     val transition = updateTransition(targetState = dashboardState, label = "dashboardTransition")
 
-    // 1. 로고 Alpha (INITIAL에서만 보임)
     val logoAlpha by transition.animateFloat(
         label = "logoAlpha",
         transitionSpec = { tween(durationMillis = 300) }
@@ -85,7 +76,6 @@ fun DashboardScreen(
         if (state == DashboardState.INITIAL) 1f else 0f
     }
     
-    // 1.1 로고 Translation Y (위로 슬라이드)
     val logoTranslationY by transition.animateDp(
         label = "logoTranslationY",
         transitionSpec = { tween(durationMillis = 300) }
@@ -93,10 +83,9 @@ fun DashboardScreen(
         if (state == DashboardState.INITIAL) 0.dp else (-30).dp
     }
 
-    // 2. 메인 콘텐츠 Offset (INITIAL -> DETAILS 시 위로 이동)
     val contentOffset by transition.animateDp(
         label = "contentOffset",
-        transitionSpec = { tween(durationMillis = 300) } // spring -> tween으로 변경
+        transitionSpec = { tween(durationMillis = 300) }
     ) { state ->
         when (state) {
             DashboardState.INITIAL -> 0.dp
@@ -105,7 +94,6 @@ fun DashboardScreen(
         }
     }
     
-    // 3. 상세 콘텐츠(카드/차트) Alpha & Offset (DETAILS 이상에서 보임)
     val detailsAlpha by transition.animateFloat(
         label = "detailsAlpha",
         transitionSpec = { tween(durationMillis = 300) }
@@ -120,7 +108,6 @@ fun DashboardScreen(
         if (state == DashboardState.INITIAL) 100.dp else 0.dp
     }
 
-    // 4. 하단 오버레이 높이
     val sheetHeight by transition.animateDp(
         label = "sheetHeight",
         transitionSpec = { spring(stiffness = Spring.StiffnessLow) }
@@ -128,7 +115,6 @@ fun DashboardScreen(
         if (state == DashboardState.EXPANDED) expandedHeight else headerHeight
     }
     
-    // 배경 콘텐츠 Alpha (오버레이 확장 시 흐려짐)
     val backgroundContentAlpha by transition.animateFloat(
          label = "backgroundContentAlpha",
          transitionSpec = { tween(durationMillis = 300) }
@@ -136,8 +122,6 @@ fun DashboardScreen(
         if (state == DashboardState.EXPANDED) 0f else 1f
     }
 
-    // 배경 그라데이션 (보호 상태 및 테마에 따라 변경)
-    val isDarkTheme = isSystemInDarkTheme()
     val backgroundBrush = if (state.status == SecurityStatus.PROTECTED) {
         if (isDarkTheme) BrandGradientDarkBlue else BrandGradientBlue
     } else {
@@ -148,7 +132,7 @@ fun DashboardScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundBrush)
-            .pointerInput(dashboardState) { // Key로 state를 사용하여 재구성 방지
+            .pointerInput(dashboardState) {
                 var accumulatedDrag = 0f
                 var totalDragX = 0f
                 var totalDragY = 0f
@@ -211,16 +195,14 @@ fun DashboardScreen(
                 }
             }
     ) {
-        // 1. 메인 콘텐츠 (뒤쪽 레이어)
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .offset(y = contentOffset)
-                .alpha(backgroundContentAlpha) // 오버레이 확장 시 배경 숨김
+                .alpha(backgroundContentAlpha)
                 .padding(bottom = headerHeight + 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1.1 상단 고정 영역 (날짜)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -228,27 +210,24 @@ fun DashboardScreen(
                     .padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1.1 상단 고정 영역 (로고 - 배경에 위치)
                 Row(
                     modifier = Modifier
-                        .height(28.dp) // 로고 크기에 맞춰 축소
+                        .height(28.dp)
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween // 양쪽 정렬
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // 텍스트가 포함된 로고 이미지 사용
                     androidx.compose.foundation.Image(
                         painter = painterResource(id = R.drawable.ic_logo),
                         contentDescription = "App Logo",
                         modifier = Modifier
-                            .height(28.dp) // 고정 크기
+                            .height(28.dp)
                             .graphicsLayer {
                                 alpha = logoAlpha
-                                translationY = logoTranslationY.toPx() // 위로 슬라이드
+                                translationY = logoTranslationY.toPx()
                             }
                     )
                     
-                    // 설정 아이콘 버튼
                     IconButton(
                         onClick = { 
                             val intent = android.content.Intent(context, com.onguard.presentation.ui.settings.SettingsActivity::class.java)
@@ -263,7 +242,7 @@ fun DashboardScreen(
                         modifier = Modifier
                             .size(28.dp)
                             .graphicsLayer {
-                                alpha = logoAlpha // 로고와 같이 사라짐
+                                alpha = logoAlpha
                                 translationY = logoTranslationY.toPx()
                             }
                     ) {
@@ -320,8 +299,6 @@ fun DashboardScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // === 메인 페이지 컨텐츠 (총 누적 데이터 표시) ===
-                // 탐지 문자 위험도 카드 (항상 표시)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -330,7 +307,6 @@ fun DashboardScreen(
                         .padding(20.dp)
                 ) {
                     Column {
-                        // 타이틀 영역
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -358,7 +334,6 @@ fun DashboardScreen(
                         
                         Spacer(modifier = Modifier.height(20.dp))
                         
-                        // 3개 수치 나열 (세로형 리스트)
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -371,7 +346,6 @@ fun DashboardScreen(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // 키워드/시간 차트 (DETAILS 이상에서만 표시)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -381,7 +355,6 @@ fun DashboardScreen(
                         },
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                // ... charts ...
                 ChartStatCard(
                     "탐지 키워드", state.totalKeywords.toString(), SearhKeyword, R.drawable.ic_keyword, "개",
                     chartPlaceholder = { WeeklyFrequencyChart(state.weeklyKeywordStats, SearhKeyword) },
@@ -393,31 +366,25 @@ fun DashboardScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(modifier = Modifier.height(30.dp))
         }
     }
 
-    // 2. 하단 오버레이 (Daily Updates - 앞쪽 레이어)
-    // Column으로 묶어서 헤더를 Surface 위에 배치
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .align(Alignment.BottomCenter)
-            // .padding(bottom = 80.dp) // 탭 바 공간 확보 제거 -> 오버레이가 탭 바 뒤로 확장됨
     ) {
-        Spacer(modifier = Modifier.height(150.dp)) // 달력과 Daily Updates 간 간격 증가
-        // 헤더 (Surface 외부로 이동)
+        Spacer(modifier = Modifier.height(150.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { 
-                    // 클릭 시 상태 전환 토글
                     dashboardState = if (dashboardState == DashboardState.EXPANDED) 
                         DashboardState.INITIAL 
                     else 
                         DashboardState.EXPANDED 
                 }
-                .padding(horizontal = 20.dp, vertical = 10.dp), // 패딩 조정
+                .padding(horizontal = 20.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -441,14 +408,13 @@ fun DashboardScreen(
                     .height(sheetHeight),
                 shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
                 color = CardBackground,
-                shadowElevation = 0.dp // 그림자 제거
+                shadowElevation = 0.dp
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 드래그 핸들 (시각적 요소 추가)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(20.dp), // 터치/드래그 영역 (시각적 요소만 제공)
+                            .height(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
@@ -460,7 +426,6 @@ fun DashboardScreen(
                         )
                     }
 
-                    // 콘텐츠 (탭 및 상세 내용)
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -486,11 +451,9 @@ fun DashboardScreen(
                                         isDraggingHorizontal = null
                                     },
                                     onDragEnd = {
-                                        // 수평 드래그 - 탭 전환
                                         if (isDraggingHorizontal == true) {
                                             val tabs = DashboardTab.values()
                                             val currentIndex = tabs.indexOf(selectedTab)
-                                            // 민감도 유지 (50f)
                                             if (totalDragX < -50f) { 
                                                 val nextIndex = (currentIndex + 1).coerceAtMost(tabs.lastIndex)
                                                 selectedTab = tabs[nextIndex]
@@ -499,18 +462,15 @@ fun DashboardScreen(
                                                 selectedTab = tabs[prevIndex]
                                             }
                                         } 
-                                        // 수직 드래그 - 오버레이 닫기 (하향 스와이프)
                                         else if (totalDragY > 100f) { 
                                             dashboardState = DashboardState.INITIAL
                                         }
                                     }
                                 ) { change, dragAmount ->
                                     if (isDraggingHorizontal == null) {
-                                        // 초기 움직임으로 방향 판별 (탄력적)
                                         if (kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
                                             isDraggingHorizontal = true
                                         } else if (dragAmount.y > 0) {
-                                            // 아래로 당길 때만 수직 제스처로 인정 (닫기 위함)
                                             isDraggingHorizontal = false
                                         }
                                     }
@@ -534,12 +494,8 @@ fun DashboardScreen(
                         // Box로 전체 감싸기 (AnimatedVisibility의 align() 스코프 복구)
                         Box(modifier = Modifier.weight(1f)) {
                             Column(modifier = Modifier.fillMaxSize()) {
-                                // 탭 바 제거됨 (외부로 이동)
-                                
                                 Spacer(modifier = Modifier.height(4.dp))
 
-                                // 2. 데일리 업데이트 (탭 컨텐츠)
-                                // 탭 제목 + 소제목 (AnimatedContent 밖으로 이동 - 슬라이드 효과 적용 안됨)
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -560,13 +516,12 @@ fun DashboardScreen(
                                     )
                                 }
 
-                                // 탭 내용 전환 애니메이션
                                 AnimatedContent(
                             targetState = selectedTab,
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 20.dp) // 콘텐츠 폭에 맞춰 여백 확보
-                                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)), // 확보된 영역 안에서 상단 라운드 처리
+                                .padding(horizontal = 20.dp)
+                                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
                             transitionSpec = {
                                 val direction = if (targetState.ordinal > initialState.ordinal) {
                                     AnimatedContentTransitionScope.SlideDirection.Left
@@ -574,7 +529,6 @@ fun DashboardScreen(
                                     AnimatedContentTransitionScope.SlideDirection.Right
                                 }
 
-                                // Spring 애니메이션으로 부드러움 극대화
                                 slideIntoContainer(
                                     towards = direction,
                                     animationSpec = spring(
@@ -596,27 +550,23 @@ fun DashboardScreen(
                             },
                             label = "TabContent"
                         ) { targetTab ->
-                            // HISTORY 탭의 아코디언 확장 상태 추적
                             val isHighRiskExpanded = remember { mutableStateOf(false) }
                             val isMediumRiskExpanded = remember { mutableStateOf(false) }
                             val isLowRiskExpanded = remember { mutableStateOf(false) }
                             val isAnyExpanded = isHighRiskExpanded.value || isMediumRiskExpanded.value || isLowRiskExpanded.value
                             
-                            // 내부 스크롤 컬럼 (LazyColumn으로 변경하여 성능 최적화)
                             LazyColumn(
                                 modifier = Modifier
-                                    .fillMaxSize(), // navigationBarsPadding 제거하여 하단 꽉 채움
-                                contentPadding = PaddingValues(bottom = 130.dp), // 탭 바 + 네비게이션 바 공간 확보
+                                    .fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 130.dp),
                                 userScrollEnabled = when (targetTab) {
-                                    DashboardTab.RATIO -> false // 비율 탭은 스크롤 비활성화
-                                    DashboardTab.HISTORY -> isAnyExpanded // HISTORY 탭은 아코디언 열렸을 때만 스크롤 허용
-                                    else -> true // 나머지 탭은 스크롤 허용
+                                    DashboardTab.RATIO -> false
+                                    DashboardTab.HISTORY -> isAnyExpanded
+                                    else -> true
                                 }
                             ) {
-                                    // === 데일리 업데이트 탭 컨텐츠 (당일 데이터만 표시) ===
                                 when (targetTab) {
                                     DashboardTab.RATIO -> {
-                                        // 누적 탐지 비교 바 차트 (상단)
                                         item {
                                             StaggeredAnimatedItem(delay = 0) {
                                                 CumulativeVsDailyComparisonCard(
@@ -628,7 +578,6 @@ fun DashboardScreen(
                                             }
                                         }
                                         item { Spacer(modifier = Modifier.height(12.dp)) }
-                                        // 일일 탐지 비교 파이 차트 (하단)
                                         item {
                                             StaggeredAnimatedItem(delay = 100) {
                                                 DailyRiskSummaryCard(state.dailyStats)
@@ -685,7 +634,6 @@ fun DashboardScreen(
                                                 }
                                             }
                                         } else {
-                                            // 전체 삭제 버튼
                                             item {
                                                 Button(
                                                     onClick = { viewModel?.clearAllAlerts() },
@@ -700,7 +648,6 @@ fun DashboardScreen(
                                             }
                                             
                                             itemsIndexed(state.recentAlerts) { index, alert ->
-                                                // 순차적 애니메이션 적용 (화면에 보이는 초기 아이템은 즉시 표시 - 프리로딩)
                                                 StaggeredAnimatedItem(
                                                     delay = if (index < 8) 0 else (index % 6) * 50, 
                                                     skeleton = { RecentAlertSkeleton() }
@@ -710,7 +657,6 @@ fun DashboardScreen(
                                                         onDelete = { id -> viewModel?.deleteAlert(id) }
                                                     )
                                                 }
-                                                // Column의 spacedBy 대신 각 아이템 아래에 Spacer 추가
                                                 Spacer(modifier = Modifier.height(8.dp))
                                             }
                                             item { Spacer(modifier = Modifier.height(40.dp)) }
@@ -726,8 +672,6 @@ fun DashboardScreen(
             }
         }
 
-        // 3. 상단 오버레이 (달력 - 독립적으로 동작)
-        // EXPANDED 일 때 위에서 내려옴
         AnimatedVisibility(
             visible = dashboardState == DashboardState.EXPANDED,
             enter = slideInVertically(
@@ -747,15 +691,14 @@ fun DashboardScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding() // 상태바 패딩 적용
+                    .statusBarsPadding()
                     .padding(horizontal = 20.dp)
-                    .padding(top = 20.dp) // 로고 위치 쯤
+                    .padding(top = 20.dp)
             ) {
                 WeekCalendarSection()
             }
         }
 
-        // 3. 하단 탭 바 (화면 최하단 고정) - EXPANDED 상태일 때만 등장
         AnimatedVisibility(
             visible = dashboardState == DashboardState.EXPANDED,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -763,8 +706,8 @@ fun DashboardScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .zIndex(1f) // 오버레이보다 위에 강제 배치
-                .padding(horizontal = 20.dp, vertical = 10.dp) // 여백 추가
+                .zIndex(1f)
+                .padding(horizontal = 20.dp, vertical = 10.dp)
         ) {
             DashboardTabBar(
                 selectedTab = selectedTab,
@@ -921,7 +864,6 @@ fun DailyRiskSummaryCard(dailyStats: DailyRiskStats) {
                 .padding(20.dp)
                 .fillMaxWidth()
         ) {
-            // 타이틀
             Text(
                 "일일 탐지 비교",
                 style = MaterialTheme.typography.titleMedium,
@@ -931,13 +873,11 @@ fun DailyRiskSummaryCard(dailyStats: DailyRiskStats) {
             
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 2. 하단 콘텐츠 (차트 + 태그)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween // 양쪽 배분
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // 차트 (왼쪽)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(140.dp)
@@ -1000,7 +940,6 @@ fun DailyRiskSummaryCard(dailyStats: DailyRiskStats) {
 
                 Spacer(modifier = Modifier.width(20.dp))
 
-                // 태그/비율 정보 (오른쪽)
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1102,7 +1041,6 @@ fun CumulativeVsDailyComparisonCard(
                 .padding(20.dp)
                 .fillMaxWidth()
         ) {
-            // 타이틀
             Text(
                 "누적 탐지 비교",
                 style = MaterialTheme.typography.titleMedium,
@@ -1112,7 +1050,6 @@ fun CumulativeVsDailyComparisonCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 라벨: 총 누적 (왼쪽) / 오늘 (오른쪽)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1149,8 +1086,7 @@ fun CumulativeVsDailyComparisonCard(
             }
             
             Spacer(modifier = Modifier.height(12.dp))
-            
-            // 단일 바: 배경 회색(총 누적), 오른쪽에서 오늘 탐지량 채우기
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

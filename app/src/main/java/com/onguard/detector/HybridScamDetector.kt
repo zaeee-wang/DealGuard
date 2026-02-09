@@ -210,12 +210,51 @@ class HybridScamDetector @Inject constructor(
             val hasExternalDbHit = urlResult.suspiciousUrls.isNotEmpty() ||
                     phoneResult.hasScamPhones ||
                     accountResult.hasFraudAccounts
-            return createRuleBasedResult(
+            
+            // 1단계: Rule-based 결과 생성 (점수/유형/판정 결정)
+            val ruleResult = createRuleBasedResult(
                 ruleConfidence,
                 combinedReasons,
                 keywordResult.detectedKeywords,
                 hasExternalDbHit
             )
+            
+            // 2단계: LLM에 "경고 문구 생성 전용" 모드로 요청 (useLLM 설정 존중)
+            if (useLLM && scamLlmClient.isAvailable()) {
+                DebugLog.debugLog(TAG) {
+                    "step=strong_signal_llm_explain ruleConfidence=$ruleConfidence scamType=${ruleResult.scamType}"
+                }
+                
+                val request = ScamLlmRequest(
+                    originalText = PiiMasker.mask(text),
+                    recentContext = PiiMasker.mask(recentContext),
+                    currentMessage = PiiMasker.mask(currentMessage),
+                    ruleReasons = combinedReasons.map { PiiMasker.mask(it) },
+                    detectedKeywords = keywordResult.detectedKeywords,
+                    explanationOnlyMode = true,
+                    ruleConfidence = ruleResult.confidence,
+                    ruleScamType = ruleResult.scamType.name
+                )
+                
+                val llmExplain = scamLlmClient.analyze(request)
+
+                if (llmExplain != null) {
+                    val preview = llmExplain.warningMessage?.take(50).orEmpty()
+                    DebugLog.debugLog(TAG) {
+                        "step=strong_signal_llm_success warningMessage=\"$preview\""
+                    }
+                    // 3단계: Rule 점수/유형 유지, LLM 문장만 덮어쓰기
+                    return ruleResult.copy(
+                        warningMessage = llmExplain.warningMessage,
+                        reasons = (ruleResult.reasons + llmExplain.reasons).distinct()
+                    )
+                } else {
+                    DebugLog.warnLog(TAG) { "step=strong_signal_llm_fallback reason=llm_null" }
+                }
+            }
+            
+            // LLM 미사용 또는 실패 시 Rule 결과 그대로 반환
+            return ruleResult
         }
 
         // 10. LLM 분석

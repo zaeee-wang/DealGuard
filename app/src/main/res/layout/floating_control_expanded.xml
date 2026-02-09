@@ -7,7 +7,6 @@
     android:paddingTop="8dp"
     android:paddingBottom="10dp">
 
-    <!-- Logo (positioned outside, top-left) -->
     <ImageView
         android:id="@+id/logo"
         android:layout_width="100dp"
@@ -20,7 +19,6 @@
         android:scaleType="fitStart"
         android:contentDescription="OnGuard 로고" />
 
-    <!-- Timer (positioned outside, top-right) -->
     <Chronometer
         android:id="@+id/timer"
         android:layout_width="wrap_content"
@@ -32,7 +30,6 @@
         android:textSize="17sp"
         android:textStyle="bold" />
 
-    <!-- Main Rounded Capsule Box (contains all buttons) -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -46,7 +43,6 @@
         android:paddingEnd="8dp"
         android:paddingBottom="10dp">
 
-        <!-- Close/Collapse Button (Chevron) -->
         <FrameLayout
             android:id="@+id/btn_close"
             android:layout_width="36dp"
@@ -69,7 +65,6 @@
             android:layout_width="4dp"
             android:layout_height="1dp" />
 
-        <!-- Open App -->
         <FrameLayout
             android:id="@+id/btn_open_app"
             android:layout_width="30dp"
@@ -92,7 +87,6 @@
             android:layout_width="4dp"
             android:layout_height="1dp" />
 
-        <!-- Accessibility Settings -->
         <FrameLayout
             android:id="@+id/btn_accessibility_settings"
             android:layout_width="36dp"
@@ -115,7 +109,6 @@
             android:layout_width="4dp"
             android:layout_height="1dp" />
 
-        <!-- Overlay Settings -->
         <FrameLayout
             android:id="@+id/btn_overlay_settings"
             android:layout_width="36dp"
@@ -138,7 +131,6 @@
             android:layout_width="6dp"
             android:layout_height="1dp" />
 
-        <!-- Pause/Stop Button Group (White Capsule) -->
         <LinearLayout
             android:id="@+id/capsule_pause_stop"
             android:layout_width="wrap_content"
@@ -151,7 +143,6 @@
             android:paddingEnd="6dp"
             android:paddingBottom="4dp">
 
-            <!-- Pause/Resume -->
             <FrameLayout
                 android:id="@+id/btn_pause_resume"
                 android:layout_width="30dp"
@@ -175,7 +166,6 @@
                 android:layout_width="4dp"
                 android:layout_height="1dp" />
 
-            <!-- Stop -->
             <FrameLayout
                 android:id="@+id/btn_stop"
                 android:layout_width="30dp"

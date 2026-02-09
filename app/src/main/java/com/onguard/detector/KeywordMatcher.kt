@@ -23,14 +23,14 @@ class KeywordMatcher @Inject constructor() {
      * 기본 가중치를 다소 공격적으로 높여둔다.
      * (실 서비스 단계에서 다시 보수적으로 조정 예정)
      *
-     * CRITICAL (0.6f): 직접적 금전/인증 요구, 기관 사칭
-     * HIGH (0.4f): 간접적 금전 관련, 피싱 키워드
-     * MEDIUM (0.25f): 의심스러운 표현
+     * CRITICAL (0.6f): 직접적 금전/인증 요구, 기관 사칭 → UI에서 "고위험"으로 표시
+     * HIGH (0.4f): 간접적 금전 관련, 피싱 키워드 → UI에서 "중위험"으로 표시
+     * MEDIUM (0.25f): 의심스러운 표현 → UI에서 "저위험"으로 표시
      */
     private enum class KeywordWeight(val weight: Float) {
-        CRITICAL(0.6f),
-        HIGH(0.4f),
-        MEDIUM(0.25f)
+        CRITICAL(0.6f),  // UI: 고위험
+        HIGH(0.4f),      // UI: 중위험
+        MEDIUM(0.25f)    // UI: 저위험
     }
 
     // 가중치별 키워드 맵
@@ -224,15 +224,15 @@ class KeywordMatcher @Inject constructor() {
 
                 when (weight) {
                     KeywordWeight.CRITICAL -> {
-                        highKeywords.addAll(detected)
+                        highKeywords.addAll(detected)  // UI에서 "고위험"으로 표시됨
                         reasons.add("매우 위험 키워드 ${detected.size}개 발견: ${detected.take(3).joinToString(", ")}")
                     }
                     KeywordWeight.HIGH -> {
-                        mediumKeywords.addAll(detected)
+                        mediumKeywords.addAll(detected)  // UI에서 "중위험"으로 표시됨
                         reasons.add("위험 키워드 ${detected.size}개 발견: ${detected.take(3).joinToString(", ")}")
                     }
                     KeywordWeight.MEDIUM -> {
-                        lowKeywords.addAll(detected)
+                        lowKeywords.addAll(detected)  // UI에서 "저위험"으로 표시됨
                         reasons.add("의심 키워드 ${detected.size}개 발견: ${detected.take(3).joinToString(", ")}")
                     }
                 }

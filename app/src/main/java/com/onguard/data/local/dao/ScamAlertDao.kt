@@ -31,4 +31,7 @@ interface ScamAlertDao {
 
     @Query("DELETE FROM scam_alerts WHERE timestamp < :cutoffDate")
     suspend fun deleteOldAlerts(cutoffDate: Date)
+
+    @Query("DELETE FROM scam_alerts")
+    suspend fun deleteAllAlerts()
 }

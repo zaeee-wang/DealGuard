@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Dark mode -->
     <item android:drawable="@drawable/bg_floating_collapsed_dark"
         android:state_enabled="true">
     </item>
-    <!-- Light mode (default) -->
     <item android:drawable="@drawable/bg_floating_collapsed_light" />
 </selector>

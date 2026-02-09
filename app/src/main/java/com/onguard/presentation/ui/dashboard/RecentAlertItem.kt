@@ -18,7 +18,6 @@ import androidx.compose.ui.res.painterResource
 import com.onguard.R
 import com.onguard.presentation.theme.*
 
-// ==== 6. 최근 알림 리스트 아이템 ====
 @Composable
 fun RecentAlertItem(
     alert: com.onguard.domain.model.ScamAlert,
@@ -39,7 +38,7 @@ fun RecentAlertItem(
 
     val riskTitle = "${(alert.confidence * 100).toInt()}% $riskLevelText 탐지"
     
-    // 앱 이름 매핑 (SettingsScreen.kt의 monitoredApps 참조)
+    // Map package names to display names
     val appNameMap = mapOf(
         "com.kakao.talk" to "카카오톡",
         "org.telegram.messenger" to "텔레그램",
@@ -53,7 +52,7 @@ fun RecentAlertItem(
         "kr.co.daangn" to "당근마켓"
     )
     
-    // 앱 아이콘 매핑 (Drawable Resource ID, _red 버전 사용)
+    // Map package names to icons
     val appIconMap = mapOf(
         "com.kakao.talk" to R.drawable.ic_massagebox_red,
         "org.telegram.messenger" to R.drawable.ic_massagebox_red,
@@ -70,11 +69,10 @@ fun RecentAlertItem(
     val appName = appNameMap[alert.sourceApp] ?: alert.sourceApp.substringAfterLast('.')
     val appIconRes = appIconMap[alert.sourceApp] ?: R.drawable.ic_massagebox_red
 
-    // 타임스탬프 포맷팅
     val dateFormat = java.text.SimpleDateFormat("yyyy.MM.dd a h:mm", java.util.Locale.getDefault())
     val dateStr = dateFormat.format(alert.timestamp)
 
-    // 메시지 cleaning: "(위험도: ...)" 패턴 제거
+    // Remove "(Confidence: ...)" pattern from message
     val cleanMessage = alert.message.replace(Regex("\\(위험도:.*\\)"), "").trim()
 
     Card(
@@ -90,7 +88,6 @@ fun RecentAlertItem(
                 .padding(20.dp)
                 .fillMaxWidth()
         ) {
-            // 상단: 아이콘 + 앱이름 + 날짜
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -139,7 +136,6 @@ fun RecentAlertItem(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 하단: 삭제 버튼 (중앙 정렬)
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center

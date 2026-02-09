@@ -32,11 +32,17 @@ interface ScamLlmClient {
  * - currentMessage: 현재(마지막) 메시지
  * - ruleReasons: 룰 기반 탐지 사유
  * - detectedKeywords: 탐지된 키워드
+ * - explanationOnlyMode: true일 때는 점수/판정 대신 warningMessage만 생성 (Rule-only용)
+ * - ruleConfidence: explanationOnlyMode=true일 때 사용 (LLM에 점수 참고용)
+ * - ruleScamType: explanationOnlyMode=true일 때 사용 (LLM에 유형 참고용)
  */
 data class ScamLlmRequest(
     val originalText: String,
     val recentContext: String,
     val currentMessage: String,
     val ruleReasons: List<String>,
-    val detectedKeywords: List<String>
+    val detectedKeywords: List<String>,
+    val explanationOnlyMode: Boolean = false,
+    val ruleConfidence: Float = 0f,
+    val ruleScamType: String = "UNKNOWN"
 )

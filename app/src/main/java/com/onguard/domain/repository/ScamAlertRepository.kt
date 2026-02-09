@@ -38,4 +38,7 @@ interface ScamAlertRepository {
 
     /** ID에 해당하는 알림을 "무시됨"으로 표시한다. */
     suspend fun markAsDismissed(id: Long)
+
+    /** 모든 알림을 삭제한다. */
+    suspend fun deleteAllAlerts()
 }

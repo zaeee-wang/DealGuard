@@ -41,9 +41,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.shadow
 import kotlinx.coroutines.delay
 
-/**
- * 모니터링 대상 앱 목록
- */
 data class MonitoredApp(
     val packageName: String,
     val displayName: String,
@@ -53,7 +50,6 @@ data class MonitoredApp(
 )
 
 private val monitoredApps = listOf(
-    // 메신저
     MonitoredApp("com.kakao.talk", "카카오톡", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
     MonitoredApp("org.telegram.messenger", "텔레그램", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
     MonitoredApp("jp.naver.line.android", "라인", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
@@ -61,12 +57,8 @@ private val monitoredApps = listOf(
     MonitoredApp("com.google.android.apps.messaging", "Google 메시지", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
     MonitoredApp("com.samsung.android.messaging", "삼성 메시지", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
     MonitoredApp("com.instagram.android", "인스타그램 DM", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
-    
-    // 통화
     MonitoredApp("com.whatsapp", "왓츠앱", R.drawable.ic_call_blue, R.drawable.ic_call_red, "통화"),
     MonitoredApp("com.discord", "디스코드", R.drawable.ic_call_blue, R.drawable.ic_call_red, "통화"),
-    
-    // 중고거래
     MonitoredApp("kr.co.daangn", "당근마켓", R.drawable.ic_cart_blue, R.drawable.ic_cart_red, "중고거래")
 )
 
@@ -124,18 +116,17 @@ fun SettingsScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = paddingValues.calculateTopPadding()) // 상단 패딩만 적용 (하단은 contentPadding으로 처리)
+                    .padding(top = paddingValues.calculateTopPadding())
                     .padding(horizontal = 20.dp)
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(
-                    top = 16.dp, 
+                    top = 16.dp,
                     bottom = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding() + 16.dp,
                     start = 0.dp,
                     end = 0.dp
-                ) // 하단 네비게이션 바 고려
+                )
             ) {
-                // 전역 탐지 설정
                 item {
                     Text(
                         text = "기본 설정",
@@ -164,7 +155,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // 제어 위젯 설정
                 item {
                     Text(
                         text = "위젯 설정",
@@ -188,7 +178,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // 권한 상태 섹션
                 item {
                     Text(
                         text = "권한 설정",
@@ -212,8 +201,6 @@ fun SettingsScreen(
                     )
                 }
 
-
-                // 섹션 헤더
                 item {
                     Text(
                         text = "앱별 탐지 설정",
@@ -246,7 +233,7 @@ fun SettingsScreen(
         }
 
 
-    // 일시 중지 다이얼로그
+    // Pause Dialog
     if (uiState.showPauseDialog) {
         PauseDetectionDialog(
             onDismiss = { viewModel.dismissPauseDialog() },
@@ -304,19 +291,16 @@ fun GlobalDetectionCard(
     onPauseClick: () -> Unit,
     onResumeClick: () -> Unit
 ) {
-    // 세션 타이머 상태
     var currentSessionTime by remember { mutableLongStateOf(sessionAccumulatedTime) }
 
-    // 타이머 갱신 로직
     LaunchedEffect(isEnabled, isPaused, detectionStartTime, sessionAccumulatedTime) {
         if (isEnabled && !isPaused && detectionStartTime > 0) {
             while (true) {
                 val now = System.currentTimeMillis()
                 currentSessionTime = sessionAccumulatedTime + (now - detectionStartTime)
-                delay(1000L) // 1초마다 갱신
+                delay(1000L)
             }
         } else {
-            // 정지 또는 일시정지 상태에서는 누적된 시간만 표시
             currentSessionTime = sessionAccumulatedTime
         }
     }
@@ -377,7 +361,6 @@ fun GlobalDetectionCard(
                     }
                 }
                 if (!isEnabled || isPaused) {
-                    // 재생 버튼 (활성화 또는 재개)
                     Surface(
                         shape = RoundedCornerShape(50),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -404,7 +387,6 @@ fun GlobalDetectionCard(
                         }
                     }
                 } else {
-                    // 정지 및 일시정지 버튼 그룹
                     Surface(
                         shape = RoundedCornerShape(50), // 완전 둥근 형태 (Pill shape)
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -415,7 +397,6 @@ fun GlobalDetectionCard(
                             modifier = Modifier.padding(horizontal = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            // 일시정지 버튼
                             IconButton(
                                 onClick = onPauseClick,
                                 modifier = Modifier.size(32.dp)
@@ -427,7 +408,6 @@ fun GlobalDetectionCard(
                                 )
                             }
                             
-                            // 정지 버튼 (비활성화)
                             IconButton(
                                 onClick = { onToggle(false) },
                                 modifier = Modifier.size(32.dp)
@@ -443,7 +423,6 @@ fun GlobalDetectionCard(
                 }
             }
 
-            // 일시 중지 상태 표시
             if (isPaused && isEnabled) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Surface(
@@ -567,7 +546,6 @@ fun AppSettingsCard(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            // 1. Header Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -623,7 +601,6 @@ fun AppSettingsCard(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 2. Grouped App List
             val groupedApps = monitoredApps.groupBy { it.category }
             
             groupedApps.forEach { (category, apps) ->
@@ -816,7 +793,7 @@ fun PauseDetectionDialog(
 }
 
 /**
- * 남은 시간 포맷팅 (밀리초 → "X시간 Y분" 또는 "X분")
+ * Format remaining time (ms -> "X hours Y min")
  */
 private fun formatRemainingTime(remainingMs: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(remainingMs)
@@ -830,9 +807,6 @@ private fun formatRemainingTime(remainingMs: Long): String {
     }
 }
 
-/**
- * 권한 상태 카드
- */
 @Composable
 
 fun PermissionsCard(
@@ -912,8 +886,6 @@ fun PermissionsCard(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 접근성 서비스 권한
-            // 접근성 서비스 권한
             PermissionRow(
                 title = "접근성 서비스",
                 description = "메시지 모니터링에 필요",
@@ -928,8 +900,6 @@ fun PermissionsCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 화면 위에 표시 권한
-            // 화면 위에 표시 권한
             PermissionRow(
                 title = "화면 위에 표시",
                 description = "스캠 경고 배너 표시에 필요",
@@ -948,9 +918,6 @@ fun PermissionsCard(
     }
 }
 
-/**
- * 개별 권한 행
- */
 @Composable
 fun PermissionRow(
     title: String,
@@ -1002,10 +969,6 @@ fun PermissionRow(
         )
     }
 }
-
-// ============================================
-// Preview
-// ============================================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, showSystemUi = true)
@@ -1120,7 +1083,7 @@ fun SettingsScreenPreview() {
     }
 }
 /**
- * 시간(밀리초)을 "HH:mm:ss" 형식으로 변환
+ * Format duration (ms -> "HH:mm:ss")
  */
 private fun formatDuration(durationMs: Long): String {
     val seconds = durationMs / 1000

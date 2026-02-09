@@ -15,7 +15,6 @@
     android:paddingTop="55dp"
     android:paddingBottom="24dp">
 
-    <!-- Header: Warning Icons + Title -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -51,7 +50,6 @@
             android:adjustViewBounds="true" />
     </LinearLayout>
 
-    <!-- Confidence Level -->
     <TextView
         android:id="@+id/confidence_text"
         android:layout_width="wrap_content"
@@ -63,7 +61,6 @@
         android:textSize="18sp"
         android:textStyle="bold" />
 
-    <!-- Warning Message -->
     <TextView
         android:id="@+id/warning_message"
         android:layout_width="match_parent"
@@ -76,7 +73,6 @@
         android:textColor="#666666"
         android:textSize="15sp" />
 
-    <!-- Risk Factor Analysis Section (Hidden by default in Summary view) -->
     <LinearLayout
         android:id="@+id/analysis_container"
         android:layout_width="match_parent"
@@ -96,7 +92,6 @@
             android:textSize="17sp"
             android:textStyle="bold" />
 
-        <!-- High Risk -->
         <LinearLayout
             android:id="@+id/high_risk_row"
             android:layout_width="match_parent"
@@ -123,7 +118,6 @@
                 android:textColor="#E56856"
                 android:textSize="14sp" />
 
-            <!-- Horizontal Scroll for Tags -->
             <HorizontalScrollView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -141,7 +135,6 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- Medium Risk -->
         <LinearLayout
             android:id="@+id/medium_risk_row"
             android:layout_width="match_parent"
@@ -184,7 +177,6 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- Low Risk -->
         <LinearLayout
             android:id="@+id/low_risk_row"
             android:layout_width="match_parent"
@@ -228,7 +220,6 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- Combination Logic -->
         <LinearLayout
             android:id="@+id/combination_row"
             android:layout_width="match_parent"
@@ -271,14 +262,12 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Buttons Container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:orientation="horizontal">
 
-        <!-- 자세히 보기 (Summary mode only) -->
         <ImageView
             android:id="@+id/btn_details"
             android:layout_width="0dp"
@@ -290,7 +279,6 @@
             android:focusable="true"
             android:src="@drawable/btn_alarm_add_red" />
 
-        <!-- 앱에서 보기 (Analysis mode only, Hidden by default) -->
         <ImageView
             android:id="@+id/btn_go_app"
             android:layout_width="0dp"
@@ -303,7 +291,6 @@
             android:src="@drawable/btn_alarm_app_red"
             android:visibility="gone" />
 
-        <!-- 닫기 (Always visible) -->
         <ImageView
             android:id="@+id/btn_dismiss"
             android:layout_width="0dp"

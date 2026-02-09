@@ -169,19 +169,79 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
     }
 
     /**
+     * 설명 전용 모드: Rule-only 결과를 기반으로 warningMessage만 생성한다.
+     *
+     * - 점수/유형/판정은 모두 무시하고, 사용자에게 보여줄 자연스러운 경고 문구만 생성.
+     * - Rule이 이미 확신을 가진 경우(강한 신호) 사용.
+     */
+    private suspend fun analyzeExplanationOnly(
+        originalText: String,
+        recentContext: String,
+        currentMessage: String,
+        ruleReasons: List<String>,
+        detectedKeywords: List<String>,
+        ruleConfidence: Float,
+        ruleScamType: String
+    ): ScamAnalysis? = withContext(Dispatchers.IO) {
+        if (!isAvailable()) {
+            DebugLog.warnLog(TAG) { "step=analyzeExplanationOnly skip reason=not_available" }
+            return@withContext null
+        }
+
+        val masked = DebugLog.maskText(recentContext.ifBlank { originalText }, maxLen = 60)
+        DebugLog.debugLog(TAG) {
+            "step=analyzeExplanationOnly ruleConf=$ruleConfidence ruleType=$ruleScamType masked=\"$masked\""
+        }
+
+        val prompt = buildPromptExplanationOnly(
+            recentContextLines = recentContext.lines().filter { it.isNotBlank() },
+            currentMessage = currentMessage,
+            ruleReasons = ruleReasons,
+            detectedKeywords = detectedKeywords,
+            ruleConfidence = ruleConfidence,
+            ruleScamType = ruleScamType
+        )
+
+        try {
+            val responseText = callGemini(prompt) ?: return@withContext null
+            val analysis = parseGeminiResponse(responseText, originalText, recentContext)
+
+            DebugLog.debugLog(TAG) {
+                "step=analyzeExplanationOnly done hasResult=${analysis != null}"
+            }
+            analysis
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Error calling Gemini LLM (explanation-only)", e)
+            null
+        }
+    }
+
+    /**
      * ScamLlmClient 인터페이스 구현.
      *
      * - 현재는 내부 analyze(...) 구현으로 위임한다.
      * - 향후 서버 프록시/다른 LLM Provider 로 교체 시 이 레이어만 대체하면 된다.
      */
     override suspend fun analyze(request: ScamLlmRequest): ScamAnalysis? {
-        return analyze(
-            originalText = request.originalText,
-            recentContext = request.recentContext,
-            currentMessage = request.currentMessage,
-            ruleReasons = request.ruleReasons,
-            detectedKeywords = request.detectedKeywords
-        )
+        return if (request.explanationOnlyMode) {
+            analyzeExplanationOnly(
+                originalText = request.originalText,
+                recentContext = request.recentContext,
+                currentMessage = request.currentMessage,
+                ruleReasons = request.ruleReasons,
+                detectedKeywords = request.detectedKeywords,
+                ruleConfidence = request.ruleConfidence,
+                ruleScamType = request.ruleScamType
+            )
+        } else {
+            analyze(
+                originalText = request.originalText,
+                recentContext = request.recentContext,
+                currentMessage = request.currentMessage,
+                ruleReasons = request.ruleReasons,
+                detectedKeywords = request.detectedKeywords
+            )
+        }
     }
 
     /**
@@ -290,6 +350,87 @@ class LLMScamDetector @Inject constructor() : ScamLlmClient {
             - IMPERSONATION: 기관/지인 사칭
             - LOAN: 대출 사기
             - UNKNOWN: 일반 또는 불명확
+        """.trimIndent()
+    }
+
+    /**
+     * 설명 전용 프롬프트 생성: Rule-only 결과를 기반으로 warningMessage만 생성.
+     *
+     * - 점수/유형은 이미 결정되어 있음을 명시
+     * - LLM은 사용자 친화적 경고 문구만 생성
+     */
+    private fun buildPromptExplanationOnly(
+        recentContextLines: List<String>,
+        currentMessage: String,
+        ruleReasons: List<String>,
+        detectedKeywords: List<String>,
+        ruleConfidence: Float,
+        ruleScamType: String
+    ): String {
+        val recentBlock = if (recentContextLines.isNotEmpty()) {
+            recentContextLines.joinToString("\n")
+        } else {
+            "(없음)"
+        }
+        val reasonsText = ruleReasons.joinToString(", ").ifBlank { "없음" }
+        val keywordsText = detectedKeywords.joinToString(", ").ifBlank { "없음" }
+        val ruleConfidencePercent = (ruleConfidence * 100).toInt()
+
+        return """
+            # 역할
+            당신은 사기 가능성을 사용자에게 알려주는 도우미입니다.
+            
+            # 중요: 탐지 모드 - RULE_ONLY (설명 전용)
+            
+            **이번 요청은 점수와 사기 여부가 이미 결정된 상태입니다.**
+            
+            - **최종 위험도**: $ruleConfidencePercent (0-100)
+            - **사기 유형**: $ruleScamType
+            - **룰 기반 탐지 이유**: $reasonsText
+            
+            당신은 이 정보를 바탕으로 **사용자에게 보여줄 경고 문구(warningMessage)만 생성**하세요.
+            - confidence와 scamType을 바꾸지 마세요 (응답에는 포함하되, 제공된 값을 그대로 사용).
+            - 주요 목표: 자연스럽고 이해하기 쉬운 한국어 경고 문장 작성.
+            
+            [최근 대화]
+            $recentBlock
+
+            [현재 메시지]
+            $currentMessage
+
+            추가 정보:
+            - 룰 기반 탐지 이유: $reasonsText
+            - 탐지된 키워드: $keywordsText
+
+            # 출력 형식
+            JSON만 출력하세요. 다른 텍스트 포함 금지.
+            
+            ```json
+            {
+              "confidence": $ruleConfidencePercent,
+              "scamType": "$ruleScamType",
+              "warningMessage": "(여기에 자연스러운 경고 문구 작성)",
+              "reasons": ["(룰 탐지 이유를 사용자 친화적으로 설명)", "..."],
+              "suspiciousParts": ["(의심스러운 부분)"]
+            }
+            ```
+            
+            **warningMessage 작성 규칙:**
+            - confidence 60 미만: "주의가 필요할 수 있습니다" + 간단한 이유
+            - confidence 60-79: "사기 가능성이 있습니다" + 구체적 위험 요소
+            - confidence 80+: "높은 사기 위험이 감지되었습니다" + 명확한 경고 + 행동 권고
+            - 2-3문장, 한국어, 사용자 친화적, 전문 용어 지양
+            
+            **예시 (confidence: 85, scamType: VOICE_PHISHING):**
+            ```json
+            {
+              "confidence": 85,
+              "scamType": "VOICE_PHISHING",
+              "warningMessage": "보이스피싱 위험이 높습니다. 전화번호가 사기 데이터베이스에 등록되어 있으며, 긴급 송금을 요구하고 있습니다. 절대 입금하지 마시고 112에 신고하세요.",
+              "reasons": ["Counter Scam 112 등록 번호", "긴급 송금 요구", "의심스러운 계좌번호"],
+              "suspiciousParts": ["010-xxxx-1234", "지금 당장 입금"]
+            }
+            ```
         """.trimIndent()
     }
 

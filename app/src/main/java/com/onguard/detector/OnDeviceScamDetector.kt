@@ -87,12 +87,25 @@ class OnDeviceScamDetector @Inject constructor(
 
     override suspend fun analyze(request: ScamLlmRequest): ScamAnalysis? = withContext(Dispatchers.IO) {
         val inference = getOrCreateLlmInference() ?: return@withContext null
-        val prompt = buildPrompt(
-            recentContextLines = request.recentContext.lines().filter { it.isNotBlank() },
-            currentMessage = request.currentMessage,
-            ruleReasons = request.ruleReasons,
-            detectedKeywords = request.detectedKeywords
-        )
+        
+        val prompt = if (request.explanationOnlyMode) {
+            buildPromptExplanationOnly(
+                recentContextLines = request.recentContext.lines().filter { it.isNotBlank() },
+                currentMessage = request.currentMessage,
+                ruleReasons = request.ruleReasons,
+                detectedKeywords = request.detectedKeywords,
+                ruleConfidence = request.ruleConfidence,
+                ruleScamType = request.ruleScamType
+            )
+        } else {
+            buildPrompt(
+                recentContextLines = request.recentContext.lines().filter { it.isNotBlank() },
+                currentMessage = request.currentMessage,
+                ruleReasons = request.ruleReasons,
+                detectedKeywords = request.detectedKeywords
+            )
+        }
+        
         try {
             val responseText = inference.generateResponse(prompt)
             parseResponse(responseText, request.originalText, request.recentContext)
@@ -187,6 +200,77 @@ class OnDeviceScamDetector @Inject constructor(
             - IMPERSONATION: 기관/지인 사칭
             - LOAN: 대출 사기
             - UNKNOWN: 일반 또는 불명확
+        """.trimIndent()
+    }
+
+    private fun buildPromptExplanationOnly(
+        recentContextLines: List<String>,
+        currentMessage: String,
+        ruleReasons: List<String>,
+        detectedKeywords: List<String>,
+        ruleConfidence: Float,
+        ruleScamType: String
+    ): String {
+        val reasonsText = ruleReasons.joinToString("; ").ifEmpty { "없음" }
+        val keywordsText = detectedKeywords.joinToString(", ").ifEmpty { "없음" }
+        val recentBlock = if (recentContextLines.isEmpty()) "- (최근 대화 없음)"
+        else recentContextLines.joinToString("\n") { "- $it" }
+        val ruleConfidencePercent = (ruleConfidence * 100).toInt()
+
+        return """
+            시스템: 당신은 사기 가능성을 사용자에게 알려주는 도우미입니다.
+            
+            # 중요: 탐지 모드 - RULE_ONLY (설명 전용)
+            
+            **이번 요청은 점수와 사기 여부가 이미 결정된 상태입니다.**
+            
+            - **최종 위험도**: $ruleConfidencePercent (0-100)
+            - **사기 유형**: $ruleScamType
+            - **룰 기반 탐지 이유**: $reasonsText
+            
+            당신은 이 정보를 바탕으로 **사용자에게 보여줄 경고 문구(warningMessage)만 생성**하세요.
+            - confidence와 scamType을 바꾸지 마세요 (응답에는 포함하되, 제공된 값을 그대로 사용).
+            - 주요 목표: 자연스럽고 이해하기 쉬운 한국어 경고 문장 작성.
+            
+            [최근 대화]
+            $recentBlock
+
+            [현재 메시지]
+            $currentMessage
+
+            추가 정보:
+            - 룰 기반 탐지 이유: $reasonsText
+            - 탐지된 키워드: $keywordsText
+
+            # 출력 형식
+            JSON만 출력하세요. 다른 텍스트 포함 금지.
+            
+            ```json
+            {
+              "confidence": $ruleConfidencePercent,
+              "scamType": "$ruleScamType",
+              "warningMessage": "(여기에 자연스러운 경고 문구 작성)",
+              "reasons": ["(룰 탐지 이유를 사용자 친화적으로 설명)", "..."],
+              "suspiciousParts": ["(의심스러운 부분)"]
+            }
+            ```
+            
+            **warningMessage 작성 규칙:**
+            - confidence 60 미만: "주의가 필요할 수 있습니다" + 간단한 이유
+            - confidence 60-79: "사기 가능성이 있습니다" + 구체적 위험 요소
+            - confidence 80+: "높은 사기 위험이 감지되었습니다" + 명확한 경고 + 행동 권고
+            - 2-3문장, 한국어, 사용자 친화적, 전문 용어 지양
+            
+            **예시 (confidence: 85, scamType: VOICE_PHISHING):**
+            ```json
+            {
+              "confidence": 85,
+              "scamType": "VOICE_PHISHING",
+              "warningMessage": "보이스피싱 위험이 높습니다. 전화번호가 사기 데이터베이스에 등록되어 있으며, 긴급 송금을 요구하고 있습니다. 절대 입금하지 마시고 112에 신고하세요.",
+              "reasons": ["Counter Scam 112 등록 번호", "긴급 송금 요구", "의심스러운 계좌번호"],
+              "suspiciousParts": ["010-xxxx-1234", "지금 당장 입금"]
+            }
+            ```
         """.trimIndent()
     }
 

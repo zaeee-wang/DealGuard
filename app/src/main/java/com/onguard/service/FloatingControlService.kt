@@ -38,9 +38,6 @@ import androidx.core.content.ContextCompat
 
 /**
  * Floating Control Widget Service
- * 
- * Displays a draggable floating overlay widget when the service is running.
- * Synchronizes state (Timer, Pause/Resume) with ScamDetectionAccessibilityService.
  */
 @AndroidEntryPoint
 class FloatingControlService : Service() {
@@ -87,8 +84,8 @@ class FloatingControlService : Service() {
         const val EXTRA_IS_ACTIVE = "is_active"
         const val EXTRA_IS_PAUSED = "is_paused"
         
-        private const val EDGE_SNAP_THRESHOLD_DP = 100 // dp from edge to trigger snap
-        private const val SWIPE_THRESHOLD_DP = 50 // minimum swipe distance
+        private const val EDGE_SNAP_THRESHOLD_DP = 100
+        private const val SWIPE_THRESHOLD_DP = 50
     }
 
     private var settingsJob: Job? = null
@@ -105,7 +102,6 @@ class FloatingControlService : Service() {
         
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
-        // 1. 관찰 리스너: DataStore를 직접 실시간 관찰하여 앱/알림창과 완벽 동기화
         settingsJob = serviceScope.launch {
             detectionSettingsStore.settingsFlow.collect { settings ->
                 currentSettings = settings
@@ -117,7 +113,6 @@ class FloatingControlService : Service() {
             }
         }
 
-        // 2. 주기적 보정 및 권한 감시: 1초마다 보정하며 권한 상태 변화를 체크하여 UI 즉시 반영
         safetySyncJob = serviceScope.launch {
             var lastAccessibilityState: Boolean? = null
             var lastOverlayState: Boolean? = null
@@ -125,24 +120,20 @@ class FloatingControlService : Service() {
             while (true) {
                 kotlinx.coroutines.delay(1000)
                 
-                // 권한 상태 실시간 체크
                 val isAccessibilityEnabled = isAccessibilityServiceEnabled(this@FloatingControlService, ScamDetectionAccessibilityService::class.java)
                 val isOverlayEnabled = Settings.canDrawOverlays(this@FloatingControlService)
                 
-                // 권한 상실 시 자동 탐지 중지 로직 (접근성 권한 필수)
                 if (!isAccessibilityEnabled && currentSettings.isDetectionEnabled) {
                     Log.w(TAG, "Accessibility permission revoked while active. Auto-disabling detection.")
                     detectionSettingsStore.setDetectionEnabled(false)
                 }
 
-                // 권한 상태가 변경되었을 때만 UI 즉시 갱신 (아이콘 색상 등 반영)
                 if (isAccessibilityEnabled != lastAccessibilityState || isOverlayEnabled != lastOverlayState) {
                     lastAccessibilityState = isAccessibilityEnabled
                     lastOverlayState = isOverlayEnabled
                     updateUIState(currentSettings)
                 }
 
-                // 타이머 시간 오차 보정
                 if (isServiceActive || isServicePaused) {
                     val correctedBase = currentSettings.calculateChronometerBase()
                     
@@ -170,7 +161,6 @@ class FloatingControlService : Service() {
             return START_NOT_STICKY
         }
         
-        // 초기 뷰 생성 (최초 1회 또는 설정 변경 시)
         showFloatingWidget(serviceStartTime)
         
         return START_STICKY
@@ -199,25 +189,20 @@ class FloatingControlService : Service() {
             return
         }
         
-        // Inflate views
         val inflater = LayoutInflater.from(this)
         expandedView = inflater.inflate(R.layout.floating_control_expanded, null)
         collapsedView = inflater.inflate(R.layout.floating_control_collapsed, null)
         
-        // Setup individual views
         setupExpandedView(startTime)
         setupCollapsedView(startTime)
         
-        // Initialize root container
         rootContainer = android.widget.FrameLayout(this).apply {
             layoutParams = android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
             )
-            // Add initial view
             addView(if (isExpanded) expandedView else collapsedView)
             
-            // Touch listener for drag and swipe
             setOnTouchListener(object : View.OnTouchListener {
                 private var startX = 0f
                 private var startY = 0f
@@ -257,18 +242,14 @@ class FloatingControlService : Service() {
                         
                         MotionEvent.ACTION_UP -> {
                             if (!hasMoved) {
-                                // Tap - toggle expand/collapse
                                 toggleExpandCollapse(startTime)
                             } else {
-                                // Released after drag - snap to edge
                                 snapToEdge(params)
                                 
-                                // Check for swipe gesture
                                 val swipeDistanceX = event.rawX - startX
                                 val swipeThreshold = dpToPx(SWIPE_THRESHOLD_DP.toFloat())
                                 
                                 if (abs(swipeDistanceX) > swipeThreshold) {
-                                    // Swipe detected
                                     val isSwipeToExpand = (currentEdge == Edge.RIGHT && swipeDistanceX < 0) ||
                                                           (currentEdge == Edge.LEFT && swipeDistanceX > 0)
                                     val isSwipeToCollapse = (currentEdge == Edge.RIGHT && swipeDistanceX > 0) ||
@@ -277,7 +258,6 @@ class FloatingControlService : Service() {
                                     if ((isExpanded && isSwipeToCollapse) || (!isExpanded && isSwipeToExpand)) {
                                         toggleExpandCollapse(startTime)
                                     } else if (!isExpanded && isSwipeToCollapse) {
-                                        // Swipe Right in Collapsed state -> Dismiss Widget
                                         dismissWidget()
                                     }
                                 }
@@ -291,7 +271,6 @@ class FloatingControlService : Service() {
             })
         }
         
-        // Create layout params
         val params = createWindowParams()
         
         try {
@@ -303,9 +282,7 @@ class FloatingControlService : Service() {
     }
 
     private fun dismissWidget() {
-        Log.d(TAG, "Dismissing widget via swipe")
         serviceScope.launch {
-            // Step 1: Slide Out animation to the right
             rootContainer?.getChildAt(0)?.animate()
                 ?.translationX(dpToPx(200f).toFloat())
                 ?.alpha(0f)
@@ -340,8 +317,8 @@ class FloatingControlService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.END
-            x = 0 // Right edge
-            y = screenHeight / 2 // Center vertically
+            x = 0
+            y = screenHeight / 2
         }
     }
 
@@ -349,7 +326,6 @@ class FloatingControlService : Service() {
         collapsedView?.let { view ->
             val timer = view.findViewById<Chronometer>(R.id.timer_collapsed)
             timer.base = startTime
-            // DO NOT start here, manage in updateUIState
         }
     }
 
@@ -357,15 +333,12 @@ class FloatingControlService : Service() {
         expandedView?.let { view ->
             val timer = view.findViewById<Chronometer>(R.id.timer)
             timer.base = startTime
-            // DO NOT start here, manage in updateUIState
             timer.visibility = if (isServiceActive || isServicePaused) View.VISIBLE else View.GONE
             
-            // Close button
             view.findViewById<View>(R.id.btn_close)?.setOnClickListener {
                 toggleExpandCollapse(startTime)
             }
             
-            // Open App
             view.findViewById<View>(R.id.btn_open_app)?.setOnClickListener {
                 val intent = Intent(this, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -373,7 +346,6 @@ class FloatingControlService : Service() {
                 startActivity(intent)
             }
             
-            // Accessibility Settings
             view.findViewById<View>(R.id.btn_accessibility_settings)?.setOnClickListener {
                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -381,7 +353,6 @@ class FloatingControlService : Service() {
                 startActivity(intent)
             }
             
-            // Overlay Settings
             view.findViewById<View>(R.id.btn_overlay_settings)?.setOnClickListener {
                 val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -389,8 +360,6 @@ class FloatingControlService : Service() {
                 startActivity(intent)
             }
             
-            // Pause/Resume
-            // Initial state: Stopped (Show Play button)
             val btnPauseResume = view.findViewById<android.view.ViewGroup>(R.id.btn_pause_resume)
             val icon = btnPauseResume?.getChildAt(0) as? android.widget.ImageView
             icon?.setImageResource(R.drawable.ic_action_play)
@@ -402,17 +371,14 @@ class FloatingControlService : Service() {
                 }
             }
             
-            // Stop (Initial: Hidden)
             val btnStop = view.findViewById<View>(R.id.btn_stop)
             val spacer = view.findViewById<View>(R.id.space_pause_stop)
             btnStop?.visibility = View.GONE
             spacer?.visibility = View.GONE
 
-            // Initial Padding for Stopped state
             val capsule = view.findViewById<android.widget.LinearLayout>(R.id.capsule_pause_stop)
             capsule?.setPadding(dpToPx(8f), dpToPx(4f), dpToPx(4f), dpToPx(4f))
             
-            // Stop Click Listener
             btnStop?.setOnClickListener {
                 serviceScope.launch {
                     detectionSettingsStore.setDetectionEnabled(false)
@@ -429,27 +395,22 @@ class FloatingControlService : Service() {
         try {
             val slideDistance = container.width.toFloat().coerceAtLeast(dpToPx(200f).toFloat())
             
-            // Step 1: Slide Out current view to the right
             currentView.animate()
                 .translationX(slideDistance)
                 .alpha(0f)
                 .setDuration(200)
                 .setListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
-                        // Step 2: Swap the view
                         isExpanded = !isExpanded
                         container.removeAllViews()
                         val nextView = if (isExpanded) expandedView else collapsedView
                         nextView?.let { v ->
-                            // Prepare next view for Slide In
                             v.translationX = slideDistance
                             v.alpha = 0f
                             container.addView(v)
                             
-                            // Ensure UI reflects current state (timer visibility, etc.)
                             updateUIState(currentSettings)
                             
-                            // Step 3: Slide In next view from the right
                             v.animate()
                                 .translationX(0f)
                                 .alpha(1f)
@@ -458,15 +419,12 @@ class FloatingControlService : Service() {
                         }
                     }
                 })
-            
-            Log.d(TAG, "Toggling with sequential slide animation to ${if (isExpanded) "expanded" else "collapsed"}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to toggle state with animation", e)
         }
     }
 
     private fun snapToEdge(params: WindowManager.LayoutParams) {
-        // Force snap to the right edge
         params.x = 0
         currentEdge = Edge.RIGHT
         
@@ -515,29 +473,20 @@ class FloatingControlService : Service() {
         val isPaused = settings.remainingPauseTime() > 0
         val startTime = settings.calculateChronometerBase()
         
-        // Update both expanded and collapsed views
         expandedView?.let { view ->
             val timer = view.findViewById<Chronometer>(R.id.timer)
             val capsule = view.findViewById<android.widget.LinearLayout>(R.id.capsule_pause_stop)
             val btnStop = view.findViewById<View>(R.id.btn_stop)
             val spacer = view.findViewById<View>(R.id.space_pause_stop)
             
-            // Timer Visibility: Gone if inactive, Visible if active/paused
             timer.visibility = if (isActive || isPaused) View.VISIBLE else View.GONE
 
-            // Handle Pause/Play button
             val container = view.findViewById<android.view.ViewGroup>(R.id.btn_pause_resume)
             val btnAccessibility = view.findViewById<android.view.View>(R.id.btn_accessibility_settings)
             val btnOverlay = view.findViewById<android.view.View>(R.id.btn_overlay_settings)
             
             val isAccessibilityEnabled = isAccessibilityServiceEnabled(this, ScamDetectionAccessibilityService::class.java)
             val isOverlayEnabled = Settings.canDrawOverlays(this)
-            
-            // Check if we CAN start (using the helper from model)
-            // But we need the settings object. We have it from Broadcast (in companion action logic)
-            // Wait, updateUIState is called from Broadcast too.
-            // Let's get the latest settings from the store if possible, or assume it's passed or available.
-            // Actually, we can check basic things here.
             
             val canStart = isAccessibilityEnabled && isOverlayEnabled && 
                            !currentSettings.disabledApps.containsAll(com.onguard.data.local.DetectionSettings.SUPPORTED_PACKAGES)
@@ -546,7 +495,6 @@ class FloatingControlService : Service() {
                 val icon = container.getChildAt(0) as? android.widget.ImageView
                 
                 if (isActive && !isPaused) {
-                    // Active -> Show Pause
                     timer.base = startTime
                     timer.start()
                     icon?.setImageResource(R.drawable.ic_action_pause)

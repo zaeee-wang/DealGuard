@@ -40,55 +40,33 @@ import com.onguard.presentation.ui.main.MainActivity
 import android.widget.Toast
 import android.provider.Settings
 
-/**
- * 접근성 서비스를 이용한 실시간 스캠 탐지 서비스.
- *
- * [targetPackages]에 포함된 앱(카카오톡, 당근마켓 등)의 화면 텍스트를 수집하고,
- * [HybridScamDetector]로 분석한 뒤, 임계값 이상이면 [OverlayService]를 통해 경고를 표시한다.
- *
- * - 디바운스(100ms)로 타이핑 중 과도한 분석 방지
- * - 최소 텍스트 길이(20자)로 짧은 인사·UI 요소 필터링
- * - 스캠 임계값 0.5로 오탐·미탐 균형
- *
- * @see HybridScamDetector 스캠 분석
- * @see OverlayService 경고 표시
- */
 @AndroidEntryPoint
 class ScamDetectionAccessibilityService : AccessibilityService() {
 
-    /** 하이브리드 스캠 탐지기 (Rule-based + LLM) */
     @Inject
     lateinit var scamDetector: HybridScamDetector
 
-    /** 탐지 설정 저장소 (DataStore) */
     @Inject
     lateinit var detectionSettingsStore: DetectionSettingsDataStore
 
     private val targetPackages = setOf(
-        // 메신저 앱
-        "com.kakao.talk",                           // 카카오톡
-        "org.telegram.messenger",                   // 텔레그램
-        "com.whatsapp",                             // 왓츠앱
-        "com.facebook.orca",                        // 페이스북 메신저
-        "com.instagram.android",                    // 인스타그램
-
-        // SMS/MMS 앱
-        "com.google.android.apps.messaging",        // Google Messages
-        "com.samsung.android.messaging",            // Samsung Messages
-        "com.android.mms",                          // 기본 메시지 앱
-
-        // 거래 플랫폼
-        "kr.co.daangn",                             // 당근마켓
-        "com.nhn.android.search",                   // 네이버 (채팅)
-
-        // 추가 메신저
-        "jp.naver.line.android",                    // 라인
-        "com.tencent.mm",                           // 위챗
-        "com.viber.voip",                           // 바이버
-        "kik.android",                              // 킥
-        "com.skype.raider",                         // 스카이프
-        "com.discord",                              // 디스코드
-        "com.snapchat.android"                      // 스냅챗
+        "com.kakao.talk",
+        "org.telegram.messenger",
+        "com.whatsapp",
+        "com.facebook.orca",
+        "com.instagram.android",
+        "com.google.android.apps.messaging",
+        "com.samsung.android.messaging",
+        "com.android.mms",
+        "kr.co.daangn",
+        "com.nhn.android.search",
+        "jp.naver.line.android",
+        "com.tencent.mm",
+        "com.viber.voip",
+        "kik.android",
+        "com.skype.raider",
+        "com.discord",
+        "com.snapchat.android"
     )
 
     private val serviceJob = Job()
@@ -97,20 +75,14 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
     private var debounceJob: Job? = null
     private var lastProcessedText: WeakReference<String>? = null
 
-    // 스크롤 중복 알림 방지용 세션 캐시
-    // Key: "앱패키지:정렬된키워드목록", Value: 마지막 알림 시각(ms)
     private val recentAlertCache = mutableMapOf<String, Long>()
 
-    // 스크롤 모드 감지용 변수
-    // - 스크롤 이벤트 발생 시 타임스탬프 기록
-    // - 일정 시간 내에는 "스크롤 모드"로 간주하여 캐시된 알림 스킵
     @Volatile
     private var lastScrollTimestamp: Long = 0L
 
     companion object {
         private const val TAG = "OnGuardService"
 
-        // 필터링할 뷰 클래스 목록 (주로 키보드나 입력 관련 UI)
         private val SKIP_VIEW_CLASSES = setOf(
             "com.android.inputmethod",
             "com.google.android.inputmethod",
@@ -120,66 +92,27 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             "Ime"
         )
 
-        // 필터링할 리소스 ID 패턴 (입력창, 검색바, 패스워드 등)
         private val SKIP_RESOURCE_ID_PATTERNS = setOf(
             "input", "edit", "search", "password", "id_input", "query"
         )
 
-        // 디바운스 지연: 100ms
-        // - 사용자 타이핑 중 과도한 분석 방지
-        // - 100ms 미만: CPU/배터리 과다 사용
-        // - 200ms 초과: UX 반응성 저하
         private const val DEBOUNCE_DELAY_MS = 100L
-
-        // 최소 텍스트 길이: 10자
-        // - 노드 필터링(shouldSkipEntireSubtree)이 키보드/UI 요소를 이미 제외
-        // - 짧은 스캠 메시지도 탐지 필요: "입금해주세요"(6자), "OTP알려줘"(7자)
-        // - 10자 미만은 의미 있는 분석 어려움 (단어 1-2개)
-        // - 주의: 개별 노드 텍스트는 5자 이상만 추출 (extractTextFromNode)
         private const val MIN_TEXT_LENGTH = 10
-
-        // 스캠 임계값: 0.5 (50%)
-        // - 오탐(false positive) 최소화와 미탐(false negative) 균형점
-        // - 0.3 이하: 오탐 증가 (일반 메시지도 스캠 판정)
-        // - 0.7 이상: 미탐 증가 (실제 스캠 놓침)
-        // - KeywordMatcher와 연동: CRITICAL 2개 조합(0.8) 또는 CRITICAL+HIGH(0.65)
         private const val SCAM_THRESHOLD = 0.5f
-
-        // ========== 스크롤 중복 알림 방지 설정 ==========
-
-        // 스크롤 모드 타임아웃 (3초)
-        // - 스크롤 이벤트 후 3초간 "스크롤 모드" 유지
-        // - 스크롤 모드에서는 캐시에 있는 키워드 조합만 스킵
-        // - 3초 후 스크롤 없으면 "새 메시지 모드"로 전환
         private const val SCROLL_MODE_TIMEOUT_MS = 3_000L
-
-        // 세션 기반 캐시 유지 시간 (1시간)
-        // - 서비스 실행 중 탐지된 키워드 조합을 1시간 동안 캐시
-        // - 스크롤 모드에서 캐시된 키워드 발견 시 스킵 (과거 메시지)
-        // - 1시간 이후 같은 내용은 새 메시지로 간주
-        private const val CACHE_EXPIRY_MS = 3_600_000L  // 1시간
-
-        // 캐시 최대 크기 (메모리 관리)
-        // - 100개 초과 시 가장 오래된 항목 제거
-        // - 메모리 사용량: ~100 * (문자열 키 + Long) ≈ 20KB 미만
+        private const val CACHE_EXPIRY_MS = 3_600_000L
         private const val CACHE_MAX_SIZE = 100
 
-        // ========== 노드 필터링 설정 (False Positive 방지) ==========
-
-        // 키보드/IME 패키지 프리픽스 (전체 서브트리 스킵)
-        // - 키보드 앱에서 오는 텍스트(숫자 버튼 등)는 분석하지 않음
         private val KEYBOARD_PACKAGE_PREFIXES = setOf(
-            "com.google.android.inputmethod",    // Gboard
-            "com.samsung.android.honeyboard",    // Samsung Keyboard
-            "com.swiftkey",                       // SwiftKey
+            "com.google.android.inputmethod",
+            "com.samsung.android.honeyboard",
+            "com.swiftkey",
             "com.touchtype.swiftkey",
-            "com.sec.android.inputmethod",       // Samsung default
-            "com.lge.ime",                        // LG Keyboard
-            "com.huawei.inputmethod"             // Huawei Keyboard
+            "com.sec.android.inputmethod",
+            "com.lge.ime",
+            "com.huawei.inputmethod"
         )
 
-        // 접근성 라벨로 간주할 패턴 (버튼, 메뉴 등의 설명)
-        // - contentDescription에 이 패턴이 포함되면 UI 라벨로 간주하여 제외
         private val ACCESSIBILITY_LABEL_PATTERNS = listOf(
             "버튼", "button", "탭", "tab", "메뉴", "menu",
             "닫기", "close", "열기", "open", "클릭", "click",
@@ -232,7 +165,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         createNotificationChannel()
         
-        // Register receiver
         val filter = IntentFilter().apply {
             addAction(ACTION_PAUSE)
             addAction(ACTION_RESUME)
@@ -253,7 +185,7 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
                     AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED or
                     AccessibilityEvent.TYPE_VIEW_SCROLLED or
-                    AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED // 알림 이벤트 추가
+                    AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                     AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
@@ -281,7 +213,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                 val previousSettings = currentSettings
                 currentSettings = settings
                 
-                // Update notification and widgets
                 if (previousSettings.isDetectionEnabled != settings.isDetectionEnabled ||
                     previousSettings.pauseUntilTimestamp != settings.pauseUntilTimestamp ||
                     previousSettings.isWidgetEnabled != settings.isWidgetEnabled) {
@@ -289,7 +220,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                     manageFloatingControlService()
                 }
 
-                // 안전 확인 (모든 앱 비활성화 시 자동 종료 등)
                 validateSafetyAndDisableIfNeeded()
 
                 DebugLog.infoLog(TAG) {
@@ -301,14 +231,11 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * 안전 상태 확인 및 필요 시 탐지 중지
-     */
     private fun validateSafetyAndDisableIfNeeded() {
         if (!currentSettings.isDetectionEnabled) return
 
         val isOverlayEnabled = Settings.canDrawOverlays(this)
-        val isAccessibilityEnabled = true // 실행 중이므로 true로 간주
+        val isAccessibilityEnabled = true
         
         if (!currentSettings.canStartDetection(isAccessibilityEnabled, isOverlayEnabled)) {
             serviceScope.launch {
@@ -321,23 +248,15 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         }
     }
 
-    // 탐지 설정 캐시 (빠른 동기 접근용)
-    // - Flow에서 최신 값을 가져와 캐시
-    // - onAccessibilityEvent에서 동기적으로 빠르게 체크
     @Volatile
     private var cachedSettings: DetectionSettings = DetectionSettings()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        // 주기적/이벤트 발생 시 안전 확인 (권한 해제 등)
         validateSafetyAndDisableIfNeeded()
 
-        // 패키지 체크
         val packageName = event.packageName?.toString()
         if (packageName !in targetPackages) return
 
-        // 탐지 설정 체크 (캐시된 값 사용 - 동기적 빠른 체크)
-        // - 전역 탐지 비활성화 또는 일시 중지 상태이면 스킵
-        // - 앱별 비활성화 설정 체크
         if (!cachedSettings.isActiveForApp(packageName ?: "")) {
             DebugLog.debugLog(TAG) {
                 "step=on_event skip reason=detection_disabled app=$packageName"
@@ -345,9 +264,7 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             return
         }
 
-        // 이벤트 타입 체크
         when (event.eventType) {
-            // 알림 이벤트 감지 → 텍스트 직접 추출 및 분석
             AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> {
                 DebugLog.debugLog(TAG) {
                     "step=on_event type=NOTIFICATION package=$packageName"
@@ -355,13 +272,11 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                 processNotificationEvent(event)
             }
 
-            // 스크롤 이벤트 감지 → 스크롤 모드 진입
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 lastScrollTimestamp = System.currentTimeMillis()
                 Log.d(TAG, "Scroll detected - entering scroll mode")
             }
 
-            // 컨텐츠 변경 이벤트 → 텍스트 분석
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
                 DebugLog.debugLog(TAG) {
@@ -374,16 +289,10 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * 알림 이벤트 처리
-     * - 알림 텍스트(event.text)를 직접 추출하여 분석
-     * - 화면 콘텐츠 변경과 달리 rootInActiveWindow를 사용하지 않음
-     */
     private fun processNotificationEvent(event: AccessibilityEvent) {
         val sourceApp = event.packageName?.toString() ?: return
         val textList = event.text ?: return
 
-        // 알림 텍스트 결합
         val validText = StringBuilder()
         for (charSequence in textList) {
             if (charSequence.isNotEmpty()) {
@@ -393,10 +302,8 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
 
         val extractedText = validText.toString().trim()
 
-        // 최소 길이 체크
         if (extractedText.length < MIN_TEXT_LENGTH) return
 
-        // 중복 체크 (WeakReference)
         val lastText = lastProcessedText?.get()
         if (extractedText == lastText) return
 
@@ -407,22 +314,17 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             "step=notification_text_extracted length=${extractedText.length} masked=\"$masked\""
         }
 
-        // 스캠 분석 (알림 텍스트)
         analyzeForScam(extractedText, sourceApp)
     }
 
     private fun processEvent(event: AccessibilityEvent) {
-        // Debouncing: 이전 작업 취소
         debounceJob?.cancel()
 
-        // event 객체는 나중에 재활용될 수 있으므로, 필요한 값은 먼저 복사해 둔다.
         val sourceApp = event.packageName?.toString() ?: return
 
         debounceJob = serviceScope.launch {
             delay(DEBOUNCE_DELAY_MS)
 
-            // rootInActiveWindow null 재시도 로직
-            // 윈도우가 완전히 로드되지 않았을 때 null 반환 가능
             var node: AccessibilityNodeInfo? = null
             var retryCount = 0
             val maxRetries = 3
@@ -431,7 +333,7 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                 node = rootInActiveWindow
                 if (node == null) {
                     retryCount++
-                    delay(50)  // 50ms 대기 후 재시도
+                    delay(50)
                 }
             }
 
@@ -440,21 +342,18 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                 return@launch
             }
 
-            // [중요] 현재 활성 윈도우가 이벤트 발생 앱과 다르면 분석 중단 (화면 전환 등)
             val activePackage = node.packageName?.toString()
             if (activePackage != sourceApp) {
                 Log.d(TAG, "Active window package ($activePackage) != Source app ($sourceApp) - skipping analysis")
                 return@launch
             }
 
-            // [중요] 앱별 활성화 여부 재확인 (설정 변경 시 즉시 반영)
             if (!cachedSettings.isActiveForApp(sourceApp)) {
                 Log.d(TAG, "Detection disabled for $sourceApp - skipping analysis")
                 return@launch
             }
 
             try {
-                // 채팅방 내부인지 확인 (목록 화면이면 스킵)
                 if (!isInsideChatRoom(node)) {
                     Log.d(TAG, "Not inside chat room (no input field) - skipping")
                     return@launch
@@ -462,7 +361,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
 
                 val extractedText = extractTextFromNode(node)
 
-                // 최소 길이 체크
                 if (extractedText.length < MIN_TEXT_LENGTH) {
                     DebugLog.debugLog(TAG) {
                         "step=process_event skip reason=too_short length=${extractedText.length}"
@@ -470,14 +368,12 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                     return@launch
                 }
 
-                // 중복 텍스트 체크 (캐시)
                 val lastText = lastProcessedText?.get()
                 if (extractedText == lastText) {
                     DebugLog.debugLog(TAG) { "step=process_event skip reason=duplicate_text" }
                     return@launch
                 }
 
-                // 새로운 텍스트 저장 (WeakReference)
                 lastProcessedText = WeakReference(extractedText)
 
                 DebugLog.debugLog(TAG) {
@@ -485,7 +381,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                     "step=text_extracted length=${extractedText.length} masked=\"$masked\""
                 }
 
-                // 스캠 분석 (event 대신 사전에 복사한 sourceApp 사용)
                 analyzeForScam(extractedText, sourceApp)
 
             } catch (e: Exception) {
@@ -496,35 +391,20 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * 텍스트 추출 (노드 필터링 적용)
-     *
-     * False Positive 방지를 위해 다음 노드는 스킵:
-     * - 편집 가능 필드 (EditText 등) → 전체 서브트리 스킵
-     * - 키보드/IME 관련 뷰 → 전체 서브트리 스킵
-     * - 시스템 UI 요소 (toolbar 등) → 현재 노드 텍스트만 스킵, 자식은 탐색
-     */
     private fun extractTextFromNode(node: AccessibilityNodeInfo): String {
-        // 1. 전체 서브트리 스킵 대상 (EditText, 키보드 등)
         if (shouldSkipEntireSubtree(node)) {
             return ""
         }
 
         val textBuilder = StringBuilder()
 
-        // 2. 현재 노드 텍스트만 스킵 대상이 아니면 텍스트 추출
         if (!shouldSkipNodeTextOnly(node)) {
-            // 텍스트 추출 (최소 길이 3자 이상)
-            // - "OTP"(3자), "급전"(2자+조사) 같은 짧은 키워드도 추출
-            // - 단일 문자/숫자 ("1", "가")는 제외
             node.text?.let { text ->
                 if (text.length >= 3) {
                     textBuilder.append(text).append(" ")
                 }
             }
 
-            // contentDescription은 접근성 라벨이 아닌 경우만 포함
-            // - 5자 이상 + 라벨 패턴 제외
             node.contentDescription?.let { desc ->
                 if (desc.length >= 5 && !isAccessibilityLabel(desc)) {
                     textBuilder.append(desc).append(" ")
@@ -532,7 +412,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3. 자식 노드 재귀 탐색 (항상 수행 - 컨테이너 안의 메시지 추출을 위해)
         for (i in 0 until node.childCount) {
             node.getChild(i)?.let { child ->
                 try {
@@ -546,31 +425,18 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         return textBuilder.toString().trim()
     }
 
-    /**
-     * 전체 서브트리를 스킵해야 하는지 확인
-     *
-     * 다음 경우 노드와 모든 자식 노드를 스킵:
-     * - 편집 가능 필드 (EditText) - 사용자 입력 영역
-     * - 키보드/IME 뷰 - 키보드 UI 숫자/문자
-     * - 키보드 앱 패키지
-     *
-     * @return true면 해당 노드와 자식 노드 전체 스킵
-     */
     private fun shouldSkipEntireSubtree(node: AccessibilityNodeInfo): Boolean {
-        // 1. 편집 가능 노드 스킵 (입력 필드 - 사용자가 입력 중인 텍스트)
         if (node.isEditable) {
             DebugLog.debugLog(TAG) { "step=skip_node reason=editable" }
             return true
         }
 
-        // 2. 키보드/IME 관련 뷰 클래스 (전체 서브트리 스킵)
         val className = node.className?.toString() ?: ""
         if (SKIP_VIEW_CLASSES.any { className.contains(it, ignoreCase = true) }) {
             DebugLog.debugLog(TAG) { "step=skip_node reason=class_match class=$className" }
             return true
         }
 
-        // 3. 리소스 ID 필터링
         val resourceId = node.viewIdResourceName ?: ""
         if (resourceId.isNotEmpty() && SKIP_RESOURCE_ID_PATTERNS.any {
             resourceId.contains(it, ignoreCase = true)
@@ -579,7 +445,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             return true
         }
 
-        // 4. 키보드/IME 윈도우 체크
         try {
             val windowPackage = node.packageName?.toString()
             if (windowPackage != null && KEYBOARD_PACKAGE_PREFIXES.any {
@@ -589,23 +454,12 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                 return true
             }
         } catch (e: Exception) {
-            // 패키지 확인 실패 시 무시
         }
 
         return false
     }
 
-    /**
-     * 현재 노드의 텍스트만 스킵하고 자식은 탐색해야 하는지 확인
-     *
-     * 다음 경우 현재 노드 텍스트만 스킵 (자식은 계속 탐색):
-     * - EditText 등 입력 관련 뷰 클래스
-     * - toolbar, status_bar 등 시스템 UI 컨테이너
-     *
-     * @return true면 현재 노드 텍스트만 스킵, 자식은 계속 탐색
-     */
     private fun shouldSkipNodeTextOnly(node: AccessibilityNodeInfo): Boolean {
-        // 1. 입력 관련 뷰 클래스 (텍스트만 스킵, 자식은 탐색)
         val className = node.className?.toString() ?: ""
         val inputClasses = setOf(
             "android.widget.EditText",
@@ -617,9 +471,7 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             return true
         }
 
-        // 2. 시스템 UI 컨테이너 (텍스트만 스킵 - 자식에 메시지가 있을 수 있음)
         val resourceId = node.viewIdResourceName ?: ""
-        // 더 엄격한 패턴만 적용 (title, header 등은 너무 광범위하여 제외)
         val strictSkipPatterns = setOf(
             "toolbar", "action_bar", "status_bar", "navigation_bar"
         )
@@ -632,49 +484,23 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         return false
     }
 
-    /**
-     * 접근성 라벨인지 확인
-     *
-     * 버튼, 메뉴, 아이콘 등의 UI 요소 설명은 메시지 콘텐츠가 아님
-     */
     private fun isAccessibilityLabel(text: CharSequence): Boolean {
         val lowerText = text.toString().lowercase()
         return ACCESSIBILITY_LABEL_PATTERNS.any { lowerText.contains(it) }
     }
 
-    // ========== 채팅방 내부 감지 (목록 화면 제외) ==========
-
-    /**
-     * 현재 화면이 채팅방 내부인지 확인
-     *
-     * 채팅방 내부에는 메시지 입력 필드(EditText)가 존재하지만,
-     * 채팅 목록 화면에는 입력 필드가 없음. 이를 활용하여 구분.
-     *
-     * @param rootNode 루트 노드
-     * @return true if inside a chat room (has input field)
-     */
     private fun isInsideChatRoom(rootNode: AccessibilityNodeInfo): Boolean {
         return hasMessageInputField(rootNode)
     }
 
-    /**
-     * 메시지 입력 필드 존재 여부 확인 (재귀 탐색)
-     *
-     * EditText, 편집 가능 노드, 또는 입력 관련 리소스 ID가 있으면 true
-     *
-     * 당근마켓 등 커스텀 UI 사용 앱을 위한 추가 패턴 포함
-     */
     private fun hasMessageInputField(node: AccessibilityNodeInfo, depth: Int = 0): Boolean {
-        // 최대 탐색 깊이 제한 (성능)
         if (depth > 15) return false
 
-        // 1. 편집 가능한 노드 발견 → 채팅방 내부
         if (node.isEditable) {
             Log.d(TAG, "Found editable node - inside chat room")
             return true
         }
 
-        // 2. 입력 관련 클래스 확인 (Compose 포함)
         val className = node.className?.toString() ?: ""
         val inputClasses = setOf(
             "EditText",
@@ -736,33 +562,11 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         return false
     }
 
-    // ========== 스크롤 중복 알림 방지 함수 ==========
-
-    /**
-     * 현재 스크롤 모드인지 확인
-     *
-     * 스크롤 이벤트 발생 후 SCROLL_MODE_TIMEOUT_MS(3초) 이내이면 스크롤 모드
-     * - 스크롤 모드: 캐시에 있는 키워드 조합은 스킵 (과거 메시지)
-     * - 일반 모드: 새 메시지로 간주하여 정상 탐지
-     *
-     * @return true if in scroll mode
-     */
     private fun isInScrollMode(): Boolean {
         val elapsed = System.currentTimeMillis() - lastScrollTimestamp
         return elapsed < SCROLL_MODE_TIMEOUT_MS
     }
 
-    /**
-     * 캐시 키 생성: 앱 + 탐지된 키워드 조합
-     *
-     * 전체 텍스트 대신 키워드만 사용하는 이유:
-     * - 스크롤 시 화면에 보이는 텍스트가 달라져도 같은 스캠 메시지면 같은 키워드 탐지
-     * - "급전 필요" 메시지가 다른 컨텍스트에서 보여도 동일 키로 인식
-     *
-     * @param detectedKeywords 탐지된 키워드 목록
-     * @param sourceApp 출처 앱 패키지명
-     * @return "앱패키지:키워드1,키워드2,..." 형식의 캐시 키
-     */
     private fun generateAlertCacheKey(
         detectedKeywords: List<String>,
         sourceApp: String
@@ -781,7 +585,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         val lastAlertTime = recentAlertCache[cacheKey] ?: return false
         val elapsed = System.currentTimeMillis() - lastAlertTime
 
-        // 만료된 캐시는 삭제 후 false 반환
         if (elapsed > CACHE_EXPIRY_MS) {
             recentAlertCache.remove(cacheKey)
             return false
@@ -790,20 +593,13 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         return true
     }
 
-    /**
-     * 캐시에 알림 등록 (오래된 항목 정리 포함)
-     *
-     * @param cacheKey 캐시 키
-     */
     private fun registerAlert(cacheKey: String) {
         val now = System.currentTimeMillis()
 
-        // 오래된 캐시 정리 (CACHE_EXPIRY_MS 이상 지난 항목)
         recentAlertCache.entries.removeIf { (_, time) ->
             now - time > CACHE_EXPIRY_MS
         }
 
-        // 캐시 크기 제한 (가장 오래된 항목 제거)
         if (recentAlertCache.size >= CACHE_MAX_SIZE) {
             val oldest = recentAlertCache.minByOrNull { it.value }?.key
             oldest?.let { recentAlertCache.remove(it) }
@@ -835,16 +631,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * 스캠 경고 오버레이 표시
-     *
-     * ScamAnalysis의 모든 정보를 OverlayService로 전달합니다:
-     * - confidence: 신뢰도
-     * - reasons: 위험 요소 목록
-     * - warningMessage: LLM 생성 경고 메시지
-     * - scamType: 스캠 유형
-     * - suspiciousParts: 의심 문구
-     */
     private fun showScamWarning(analysis: ScamAnalysis, sourceApp: String) {
         handler.post {
             try {
@@ -858,7 +644,6 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                     putExtra(OverlayService.EXTRA_REASONS, analysis.reasons.joinToString(", "))
                     putExtra(OverlayService.EXTRA_SOURCE_APP, sourceApp)
 
-                    // LLM 생성 데이터
                     putExtra(OverlayService.EXTRA_WARNING_MESSAGE, analysis.warningMessage)
                     putExtra(OverlayService.EXTRA_SCAM_TYPE, analysis.scamType.name)
                     putStringArrayListExtra(
@@ -925,7 +710,7 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "OnGuard Scam Detection",
-                NotificationManager.IMPORTANCE_HIGH // HIGH로 변경하여 최상단 유지
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Shows active scam detection status"
                 setShowBadge(false)
@@ -935,14 +720,10 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
     }
 
     private fun updateForegroundNotification() {
-        // Always start foreground service, regardless of active state
-        // The content of the notification will change based on the state
         val notification = buildNotification()
         
-        // NotificationManager를 통해 직접 업데이트하여 타임스탬프 갱신
         notificationManager.notify(NOTIFICATION_ID, notification)
         
-        // 포그라운드 서비스 시작
         startForeground(NOTIFICATION_ID, notification)
     }
 
@@ -959,37 +740,34 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(iconRes)
-            .setPriority(NotificationCompat.PRIORITY_MAX) // 최상단 우선순위
-            .setOngoing(true) // 지속적인 알림 (스와이프로 삭제 불가)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setOngoing(true)
             .setContentIntent(openIntent)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE) // 서비스 카테고리
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // 잠금화면에서도 표시
-            .setOnlyAlertOnce(true) // 업데이트 시 소리/진동 없음
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
 
         if (!isEnabled) {
-            // Disabled state
             contentTitle = "OnGuard가 꺼져 있습니다."
             builder.setContentTitle(contentTitle)
             builder.setShowWhen(false)
-            builder.setUsesChronometer(false) // Explicitly disable
+            builder.setUsesChronometer(false)
             builder.addAction(R.drawable.ic_action_play, "켜기", getPendingIntent(ACTION_START))
         } else if (isPaused) {
-            // Paused state
             contentTitle = "OnGuard가 일시중지되었습니다."
             builder.setContentTitle(contentTitle)
             builder.setShowWhen(false)
-            builder.setUsesChronometer(false) // Explicitly disable
+            builder.setUsesChronometer(false)
             builder.addAction(R.drawable.ic_action_play, "다시 시작", getPendingIntent(ACTION_RESUME))
             builder.addAction(R.drawable.ic_action_end, "종료", getPendingIntent(ACTION_STOP))
         } else {
-            // Active state
             val remoteViews = RemoteViews(packageName, R.layout.view_notification_active_body)
             remoteViews.setChronometer(R.id.notification_timer, baseTime, null, true)
             
             builder.setContentTitle("OnGuard가 탐지중입니다.")
             builder.setCustomBigContentView(remoteViews)
             builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            builder.setShowWhen(false) // 시간 표시 안 함 (크로노미터 사용)
+            builder.setShowWhen(false)
             
             builder.addAction(R.drawable.ic_action_pause, "일시정지", getPendingIntent(ACTION_PAUSE))
             builder.addAction(R.drawable.ic_action_end, "종료", getPendingIntent(ACTION_STOP))
@@ -1014,16 +792,13 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             when (action) {
                 ACTION_PAUSE -> {
-                    // Pause for 1 hour (60 minutes)
                     detectionSettingsStore.pauseDetection(60)
                 }
                 ACTION_RESUME, ACTION_START -> {
-                    // Start/Resume 시 권한 및 앱 설정 확인
                     val isOverlayEnabled = Settings.canDrawOverlays(this@ScamDetectionAccessibilityService)
                     val isAnyAppEnabled = SUPPORTED_PACKAGES.any { it !in currentSettings.disabledApps }
 
                     if (!isOverlayEnabled || !isAnyAppEnabled) {
-                        // 설정이 미비할 경우 설정 화면으로 유도
                         handler.post {
                             Toast.makeText(
                                 this@ScamDetectionAccessibilityService,
@@ -1046,30 +821,20 @@ class ScamDetectionAccessibilityService : AccessibilityService() {
                     }
                 }
                 ACTION_STOP -> {
-                    // Disable detection
                     detectionSettingsStore.setDetectionEnabled(false)
                 }
                 ACTION_OPEN -> {
-                    // Open App
                     val intent = Intent(this@ScamDetectionAccessibilityService, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     }
                     startActivity(intent)
-                    
-                    // Close notification panel (optional, usually system handles it)
                 }
             }
         }
     }
 
     
-    /**
-     * FloatingControlService 시작/종료 관리 및 상태 동기화
-     */
     private fun manageFloatingControlService() {
-        // Widget lifecycle is now managed by ViewModels (MainViewModel, SettingsViewModel)
-        // based on the isWidgetEnabled setting and Overlay permission.
-        // We only broadcast the current service state for UI synchronization.
         broadcastServiceState()
     }
 

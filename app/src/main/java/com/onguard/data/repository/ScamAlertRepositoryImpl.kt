@@ -57,6 +57,10 @@ class ScamAlertRepositoryImpl @Inject constructor(
         dao.markAsDismissed(id)
     }
 
+    override suspend fun deleteAllAlerts() {
+        dao.deleteAllAlerts()
+    }
+
     private fun ScamAlertEntity.toDomain(): ScamAlert {
         return ScamAlert(
             id = this.id,

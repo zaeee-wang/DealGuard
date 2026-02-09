@@ -1,17 +1,52 @@
-# OnGuard - AI 기반 실시간 스캠 탐지 안드로이드 앱
+<div align="center">
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0+-purple.svg)](https://kotlinlang.org)
-[![Android](https://img.shields.io/badge/Android-8.0+-green.svg)](https://developer.android.com)
-[![LLM](https://img.shields.io/badge/LLM-Gemini_Flash-orange.svg)](https://ai.google.dev/gemini-api)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+  <h1>OnGuard</h1>
+  <p><strong>AI 기반 실시간 스캠 탐지 안드로이드 앱</strong></p>
 
-**플랫폼에 구애받지 않는 실시간 스캠 탐지 안드로이드 앱**
+  <p>
+    <a href="https://kotlinlang.org">
+      <img src="https://img.shields.io/badge/Kotlin-2.0+-purple.svg" alt="Kotlin">
+    </a>
+    <a href="https://developer.android.com">
+      <img src="https://img.shields.io/badge/Android-8.0+-green.svg" alt="Android">
+    </a>
+    <a href="https://ai.google.dev/gemini-api">
+      <img src="https://img.shields.io/badge/LLM-Gemini_Flash-orange.svg" alt="Gemini">
+    </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
+    </a>
+  </p>
 
-데이콘 경진대회 출품작 - 경찰청 후원, 데이터유니버스 주최
+  <p><em>데이콘 경진대회 출품작 · 경찰청 후원 · 데이터유니버스 주최</em></p>
+
+  <br />
+
+  <table>
+    <tr>
+      <td align="center">
+        <strong>📱 어디서든</strong><br/>
+        카카오톡·메신저·거래 앱까지<br/>
+        한 번에 모니터링
+      </td>
+      <td align="center">
+        <strong>🤖 똑똑한 탐지</strong><br/>
+        Rule + LLM 하이브리드로<br/>
+        맥락까지 이해하는 스캠 필터
+      </td>
+      <td align="center">
+        <strong>🔐 프라이버시 우선</strong><br/>
+        온디바이스 분석 중심,<br/>
+        민감정보 최소 전송 & 마스킹
+      </td>
+    </tr>
+  </table>
+
+</div>
 
 ---
 
-## 목차
+## 🌈 목차
 
 - [주요 기능](#주요-기능)
 - [차별점](#차별점)
