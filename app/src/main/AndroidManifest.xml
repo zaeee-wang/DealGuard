@@ -26,7 +26,7 @@
         <activity
             android:name=".presentation.ui.splash.SplashActivity"
             android:exported="true"
-            android:theme="@style/Theme.OnGuard"
+            android:theme="@style/Theme.OnGuard.Fullscreen"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
