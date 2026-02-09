@@ -237,10 +237,11 @@ class HybridScamDetector @Inject constructor(
                 )
                 
                 val llmExplain = scamLlmClient.analyze(request)
-                
+
                 if (llmExplain != null) {
+                    val preview = llmExplain.warningMessage?.take(50).orEmpty()
                     DebugLog.debugLog(TAG) {
-                        "step=strong_signal_llm_success warningMessage=\"${llmExplain.warningMessage.take(50)}\""
+                        "step=strong_signal_llm_success warningMessage=\"$preview\""
                     }
                     // 3단계: Rule 점수/유형 유지, LLM 문장만 덮어쓰기
                     return ruleResult.copy(
