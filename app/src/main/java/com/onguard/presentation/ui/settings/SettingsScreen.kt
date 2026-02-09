@@ -2,6 +2,8 @@ package com.onguard.presentation.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.painterResource
+import com.onguard.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,26 +47,27 @@ import kotlinx.coroutines.delay
 data class MonitoredApp(
     val packageName: String,
     val displayName: String,
-    val icon: ImageVector,
+    val enabledIconRes: Int,
+    val disabledIconRes: Int,
     val category: String
 )
 
 private val monitoredApps = listOf(
     // 메신저
-    MonitoredApp("com.kakao.talk", "카카오톡", Icons.Default.Chat, "메신저"),
-    MonitoredApp("org.telegram.messenger", "텔레그램", Icons.Default.Send, "메신저"),
-    MonitoredApp("jp.naver.line.android", "라인", Icons.Default.Chat, "메신저"),
-    MonitoredApp("com.facebook.orca", "페이스북 메신저", Icons.Default.Message, "메신저"),
-    MonitoredApp("com.google.android.apps.messaging", "Google 메시지", Icons.Default.Sms, "메신저"),
-    MonitoredApp("com.samsung.android.messaging", "삼성 메시지", Icons.Default.Sms, "메신저"),
-    MonitoredApp("com.instagram.android", "인스타그램 DM", Icons.Default.Send, "메신저"),
+    MonitoredApp("com.kakao.talk", "카카오톡", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
+    MonitoredApp("org.telegram.messenger", "텔레그램", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
+    MonitoredApp("jp.naver.line.android", "라인", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
+    MonitoredApp("com.facebook.orca", "페이스북 메신저", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
+    MonitoredApp("com.google.android.apps.messaging", "Google 메시지", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
+    MonitoredApp("com.samsung.android.messaging", "삼성 메시지", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
+    MonitoredApp("com.instagram.android", "인스타그램 DM", R.drawable.ic_massagebox_blue, R.drawable.ic_massagebox_red, "메신저"),
     
     // 통화
-    MonitoredApp("com.whatsapp", "왓츠앱", Icons.Default.Phone, "통화"),
-    MonitoredApp("com.discord", "디스코드", Icons.Default.Headphones, "통화"),
+    MonitoredApp("com.whatsapp", "왓츠앱", R.drawable.ic_call_blue, R.drawable.ic_call_red, "통화"),
+    MonitoredApp("com.discord", "디스코드", R.drawable.ic_call_blue, R.drawable.ic_call_red, "통화"),
     
     // 중고거래
-    MonitoredApp("kr.co.daangn", "당근마켓", Icons.Default.ShoppingCart, "중고거래")
+    MonitoredApp("kr.co.daangn", "당근마켓", R.drawable.ic_cart_blue, R.drawable.ic_cart_red, "중고거래")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -121,25 +124,9 @@ fun SettingsScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 16.dp)
-                    // 시스템 바 영역만큼 패딩 추가 (contentWindowInsets를 0으로 설정했으므로 수동 처리 필요할 수 있음)
-                    // 하지만 Scaffold의 paddingValues가 insets를 포함하므로 paddingValues 사용하면 됨
-                    // 다만 WindowInsets(0)으로 설정하면 paddingValues에 systemBar inset이 포함되지 않음.
-                    // 따라서 WindowInsets.systemBars를 사용하거나,
-                    // 배경만 확장하고 컨텐츠는 안전 영역에 두려면 Scaffold defaults가 맞음.
-                    
-                    // 사용자의 요청: "배경이 상단바전체와 하단 전체를 덮도록"
-                    // -> Scaffold의 containerColor가 시스템 바 뒤까지 그려져야 함.
-                    // -> enableEdgeToEdge()는 이미 적용됨.
-                    // -> Scaffold의 containerColor는 기본적으로 전체를 채움.
-                    // -> TopAppBar가 투명이면 됨.
-                    // -> 하지만 contentWindowInsets = WindowInsets(0)을 하면 TopAppBar가 status bar와 겹치게 됨.
-                    // -> 그리고 paddingValues는 0이 됨 (topBar 높이 제외).
-                    
-                    // 수정: contentWindowInsets는 삭제 (기본값 사용)하고 TopAppBar만 투명하게 하거나,
-                    // 배경색을 명시적으로 지정.
-                ,
+                    .padding(top = paddingValues.calculateTopPadding()) // 상단 패딩만 적용 (하단은 contentPadding으로 처리)
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(
                     top = 16.dp, 
@@ -165,7 +152,7 @@ fun SettingsScreen(
                 // 권한 상태 섹션
                 item {
                     Text(
-                        text = "권한 상태",
+                        text = "권한 설정",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground,
@@ -236,7 +223,7 @@ fun ModernSwitch(
     modifier: Modifier = Modifier
 ) {
     val trackColor by animateColorAsState(
-        targetValue = if (checked) Color(0xFF34C759) else Color(0xFFE9E9EA), // iOS Green : iOS Gray
+        targetValue = if (checked) Color(0xFF143D95) else Color(0xFFE9E9EA), // Blue : iOS Gray
         label = "trackColor"
     )
     
@@ -317,22 +304,18 @@ fun GlobalDetectionCard(
                             .size(48.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isEnabled && !isPaused) Color(0xFF34C759).copy(alpha = 0.1f)
-                                else Color(0xFFE53935).copy(alpha = 0.1f)
+                                if (isEnabled && !isPaused) Color(0xFF143D95).copy(alpha = 0.1f)
+                                else Color(0xFF5E0B0B).copy(alpha = 0.1f)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = if (isEnabled && !isPaused)
-                                Icons.Default.Shield
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = if (isEnabled && !isPaused)
+                                R.drawable.ic_shield_blue
                             else
-                                Icons.Default.ShieldMoon,
+                                R.drawable.ic_shield_red),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = if (isEnabled && !isPaused)
-                                Color(0xFF34C759)
-                            else
-                                Color(0xFFE53935)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(16.dp))
@@ -359,7 +342,7 @@ fun GlobalDetectionCard(
                     Surface(
                         shape = RoundedCornerShape(50),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.height(48.dp)
+                        modifier = Modifier.height(40.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -371,13 +354,12 @@ fun GlobalDetectionCard(
                                     if (isPaused) onResumeClick()
                                     else onToggle(true)
                                 },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
+                                androidx.compose.foundation.Image(
+                                    painter = painterResource(id = R.drawable.ic_action_play),
                                     contentDescription = "활성화",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -387,7 +369,7 @@ fun GlobalDetectionCard(
                     Surface(
                         shape = RoundedCornerShape(50), // 완전 둥근 형태 (Pill shape)
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.height(48.dp)
+                        modifier = Modifier.height(40.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -397,26 +379,24 @@ fun GlobalDetectionCard(
                             // 일시정지 버튼
                             IconButton(
                                 onClick = onPauseClick,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Pause,
+                                androidx.compose.foundation.Image(
+                                    painter = painterResource(id = R.drawable.ic_action_pause),
                                     contentDescription = "일시정지",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                             
                             // 정지 버튼 (비활성화)
                             IconButton(
                                 onClick = { onToggle(false) },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Stop,
+                                androidx.compose.foundation.Image(
+                                    painter = painterResource(id = R.drawable.ic_action_end),
                                     contentDescription = "비활성화",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -492,24 +472,27 @@ fun AppSettingsCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    val allEnabled = disabledApps.isEmpty()
                     Box(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                            .background(
+                                if (allEnabled) Color(0xFF143D95).copy(alpha = 0.1f)
+                                else Color(0xFF5E0B0B).copy(alpha = 0.1f)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Apps,
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = if (allEnabled) R.drawable.ic_appgroup_blue else R.drawable.ic_appgroup_red),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text(
-                            text = "개별 탐지 설정",
+                            text = "탐지 활성화",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -525,14 +508,12 @@ fun AppSettingsCard(
                 if (disabledApps.isNotEmpty()) {
                     IconButton(
                         onClick = onEnableAll,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = R.drawable.ic_refresh_all),
                             contentDescription = "모두 활성화",
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(28.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                         )
                     }
                 }
@@ -555,7 +536,7 @@ fun AppSettingsCard(
                     Text(
                         text = category,
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
                     )
                     
@@ -564,10 +545,11 @@ fun AppSettingsCard(
                             onClick = { onEnableApps(appsInGroup) },
                             modifier = Modifier.size(24.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
+                            androidx.compose.foundation.Image(
+                                painter = painterResource(id = R.drawable.ic_refresh_all),
                                 contentDescription = "$category 그룹 활성화",
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                modifier = Modifier.size(24.dp),
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                             )
                         }
                     }
@@ -588,11 +570,10 @@ fun AppSettingsCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = app.icon,
+                            androidx.compose.foundation.Image(
+                                painter = painterResource(id = if (isEnabled) app.enabledIconRes else app.disabledIconRes),
                                 contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint = if (isEnabled) Color(0xFF34C759) else MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(
@@ -782,22 +763,18 @@ fun PermissionsCard(
                             .size(48.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isAccessibilityEnabled && isOverlayEnabled) Color(0xFF34C759).copy(alpha = 0.1f)
-                                else Color(0xFFE53935).copy(alpha = 0.1f)
+                                if (isAccessibilityEnabled && isOverlayEnabled) Color(0xFF143D95).copy(alpha = 0.1f)
+                                else Color(0xFF5E0B0B).copy(alpha = 0.1f)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = if (isAccessibilityEnabled && isOverlayEnabled)
-                                Icons.Default.CheckCircle
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = if (isAccessibilityEnabled && isOverlayEnabled)
+                                R.drawable.ic_setting_blue
                             else
-                                Icons.Default.Warning,
+                                R.drawable.ic_setting_red),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = if (isAccessibilityEnabled && isOverlayEnabled)
-                                Color(0xFF34C759)
-                            else
-                                Color(0xFFE53935)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(16.dp))
@@ -822,17 +799,25 @@ fun PermissionsCard(
                     }
                 }
                 IconButton(onClick = onRefresh) {
-                    Icon(Icons.Default.Refresh, contentDescription = "새로고침", tint = MaterialTheme.colorScheme.onSurface)
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = R.drawable.ic_refresh_setting),
+                        contentDescription = "새로고침",
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // 접근성 서비스 권한
+            // 접근성 서비스 권한
             PermissionRow(
                 title = "접근성 서비스",
                 description = "메시지 모니터링에 필요",
                 isEnabled = isAccessibilityEnabled,
+                enabledIconRes = R.drawable.ic_access_blue,
+                disabledIconRes = R.drawable.ic_access_red,
                 onClick = {
                     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                     context.startActivity(intent)
@@ -842,10 +827,13 @@ fun PermissionsCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             // 화면 위에 표시 권한
+            // 화면 위에 표시 권한
             PermissionRow(
                 title = "화면 위에 표시",
                 description = "스캠 경고 배너 표시에 필요",
                 isEnabled = isOverlayEnabled,
+                enabledIconRes = R.drawable.ic_overlay_blue,
+                disabledIconRes = R.drawable.ic_overlay_red,
                 onClick = {
                     val intent = Intent(
                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -866,6 +854,8 @@ fun PermissionRow(
     title: String,
     description: String = "",
     isEnabled: Boolean,
+    enabledIconRes: Int,
+    disabledIconRes: Int,
     onClick: () -> Unit
 ) {
     Row(
@@ -882,10 +872,9 @@ fun PermissionRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
-            Icon(
-                imageVector = if (isEnabled) Icons.Default.CheckCircle else Icons.Default.Warning,
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = if (isEnabled) enabledIconRes else disabledIconRes),
                 contentDescription = null,
-                tint = if (isEnabled) Color(0xFF34C759) else Color(0xFFE53935),
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
@@ -905,26 +894,10 @@ fun PermissionRow(
                 }
             }
         }
-        if (!isEnabled) {
-            Button(
-                onClick = onClick,
-                modifier = Modifier.padding(start = 8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE53935),
-                    contentColor = Color.White
-                ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text("활성화", fontSize = 13.sp)
-            }
-        } else {
-            Icon(
-                imageVector = Icons.Default.Done,
-                contentDescription = "활성화됨",
-                tint = Color(0xFF34C759),
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
+        ModernSwitch(
+            checked = isEnabled,
+            onCheckedChange = { onClick() }
+        )
     }
 }
 

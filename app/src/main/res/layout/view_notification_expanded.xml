@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="128dp"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Header removed -->
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <!-- Left: Timer & Status -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Chronometer
+                android:id="@+id/chronometer_timer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/notification_content_color"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/notification_status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="탐지 중..."
+                android:textColor="@color/notification_content_color"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Right: Actions -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+
+
+            <ImageButton
+                android:id="@+id/btn_action_pause"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="16dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Pause"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_action_pause"
+                android:tint="@color/notification_content_color"
+                xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+            <!-- Stop Icon: Creating a simple filled square using built-in or vector -->
+            <!-- Using ic_action_close for stop/close or standard stop icon -->
+            <!-- Use ic_action_close for now as Stop/Close -->
+            <ImageButton
+                android:id="@+id/btn_action_stop"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Stop"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_action_end"
+                android:tint="@color/notification_content_color"
+                xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

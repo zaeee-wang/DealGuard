@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import com.onguard.R
 import com.onguard.presentation.theme.*
 
 // ==== 6. 최근 알림 리스트 아이템 ====
@@ -51,22 +53,22 @@ fun RecentAlertItem(
         "kr.co.daangn" to "당근마켓"
     )
     
-    // 앱 아이콘 매핑
+    // 앱 아이콘 매핑 (Drawable Resource ID, _red 버전 사용)
     val appIconMap = mapOf(
-        "com.kakao.talk" to Icons.Default.Chat,
-        "org.telegram.messenger" to Icons.Default.Send,
-        "jp.naver.line.android" to Icons.Default.Chat,
-        "com.facebook.orca" to Icons.Default.Message,
-        "com.google.android.apps.messaging" to Icons.Default.Sms,
-        "com.samsung.android.messaging" to Icons.Default.Sms,
-        "com.instagram.android" to Icons.Default.Send,
-        "com.whatsapp" to Icons.Default.Phone,
-        "com.discord" to Icons.Default.Headphones,
-        "kr.co.daangn" to Icons.Default.ShoppingCart
+        "com.kakao.talk" to R.drawable.ic_massagebox_red,
+        "org.telegram.messenger" to R.drawable.ic_massagebox_red,
+        "jp.naver.line.android" to R.drawable.ic_massagebox_red,
+        "com.facebook.orca" to R.drawable.ic_massagebox_red,
+        "com.google.android.apps.messaging" to R.drawable.ic_massagebox_red,
+        "com.samsung.android.messaging" to R.drawable.ic_massagebox_red,
+        "com.instagram.android" to R.drawable.ic_massagebox_red,
+        "com.whatsapp" to R.drawable.ic_call_red,
+        "com.discord" to R.drawable.ic_call_red,
+        "kr.co.daangn" to R.drawable.ic_cart_red
     )
     
     val appName = appNameMap[alert.sourceApp] ?: alert.sourceApp.substringAfterLast('.')
-    val appIcon = appIconMap[alert.sourceApp] ?: Icons.Default.Sms
+    val appIconRes = appIconMap[alert.sourceApp] ?: R.drawable.ic_massagebox_red
 
     // 타임스탬프 포맷팅
     val dateFormat = java.text.SimpleDateFormat("yyyy.MM.dd a h:mm", java.util.Locale.getDefault())
@@ -93,9 +95,9 @@ fun RecentAlertItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = appIcon,
+                    painter = painterResource(id = appIconRes),
                     contentDescription = null,
-                    tint = Color(0xFF8D6E63), // 갈색 톤 아이콘
+                    tint = Color.Unspecified, // 아이콘 원래 색상 사용
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))

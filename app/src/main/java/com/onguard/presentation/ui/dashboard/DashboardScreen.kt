@@ -3,6 +3,7 @@
 package com.onguard.presentation.ui.dashboard
 
 import androidx.compose.animation.*
+import androidx.compose.ui.zIndex
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
@@ -10,6 +11,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -17,6 +19,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -24,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.IntSize
 
 import androidx.compose.ui.graphics.graphicsLayer
@@ -130,10 +135,18 @@ fun DashboardScreen(
         if (state == DashboardState.EXPANDED) 0f else 1f
     }
 
+    // 배경 그라데이션 (보호 상태 및 테마에 따라 변경)
+    val isDarkTheme = isSystemInDarkTheme()
+    val backgroundBrush = if (state.status == SecurityStatus.PROTECTED) {
+        if (isDarkTheme) BrandGradientDarkBlue else BrandGradientBlue
+    } else {
+        if (isDarkTheme) BrandGradientDarkRed else BrandGradientRed
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BrandGradient)
+            .background(backgroundBrush)
             .pointerInput(dashboardState) { // Key로 state를 사용하여 재구성 방지
                 var accumulatedDrag = 0f
                 var totalDragX = 0f
@@ -299,13 +312,14 @@ fun DashboardScreen(
                     lineHeight = 72.sp
                 )
                 Text(
-                    text = "회",
+                    text = "건",
                     fontSize = 20.sp,
                     color = TextWhite.copy(alpha = 0.9f),
                     fontWeight = FontWeight.Medium
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 
+                // === 메인 페이지 컨텐츠 (총 누적 데이터 표시) ===
                 // 탐지 문자 위험도 카드 (항상 표시)
                 Box(
                     modifier = Modifier
@@ -326,16 +340,15 @@ fun DashboardScreen(
                                     .background(Color.Black.copy(alpha = 0.05f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
+                                androidx.compose.foundation.Image(
+                                    painter = painterResource(id = R.drawable.ic_magnifyingglass_text),
                                     contentDescription = null,
-                                    tint = TextPrimary,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "탐지 키워드 위험도 분류",
+                                text = "위험도별 탐지 분류",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
@@ -349,9 +362,9 @@ fun DashboardScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            RiskStatItem("고위험 문구", state.highRiskCount, RiskHigh)
-                            RiskStatItem("중위험 문구", state.mediumRiskCount, RiskMedium)
-                            RiskStatItem("저위험 문구", state.lowRiskCount, RiskLow)
+                            RiskStatItem("고위험 탐지", state.highRiskCount, RiskHigh, R.drawable.ic_magnifyingglass_cross)
+                            RiskStatItem("중위험 탐지", state.mediumRiskCount, RiskMedium, R.drawable.ic_magnifyingglass_exclamation)
+                            RiskStatItem("저위험 탐지", state.lowRiskCount, RiskLow, R.drawable.ic_magnifyingglass_question)
                         }
                     }
                 }
@@ -369,13 +382,13 @@ fun DashboardScreen(
                 ) {
                 // ... charts ...
                 ChartStatCard(
-                    "탐지 키워드", state.totalKeywords.toString(), SearhKeyword, "개",
-                    chartPlaceholder = { MiniBarChart(SearhKeyword) },
+                    "탐지 키워드", state.totalKeywords.toString(), SearhKeyword, R.drawable.ic_keyword, "개",
+                    chartPlaceholder = { WeeklyFrequencyChart(state.weeklyKeywordStats, SearhKeyword) },
                     modifier = Modifier.weight(1f)
                 )
                 ChartStatCard(
-                    "탐지 시간", state.totalDetectionValue.toString(), SearhTime, state.totalDetectionUnit,
-                    chartPlaceholder = { MiniBarChart(SearhTime) },
+                    "탐지 시간", state.totalDetectionValue.toString(), SearhTime, R.drawable.ic_magnifyingglass_time, state.totalDetectionUnit,
+                    chartPlaceholder = { WeeklyFrequencyChart(state.weeklyTimeStats, SearhTime) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -389,6 +402,7 @@ fun DashboardScreen(
         modifier = Modifier
             .fillMaxWidth()
             .align(Alignment.BottomCenter)
+            // .padding(bottom = 80.dp) // 탭 바 공간 확보 제거 -> 오버레이가 탭 바 뒤로 확장됨
     ) {
         Spacer(modifier = Modifier.height(150.dp)) // 달력과 Daily Updates 간 간격 증가
         // 헤더 (Surface 외부로 이동)
@@ -426,7 +440,7 @@ fun DashboardScreen(
                     .height(sheetHeight),
                 shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
                 color = CardBackground,
-                shadowElevation = 16.dp
+                shadowElevation = 0.dp // 그림자 제거
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // 드래그 핸들 (시각적 요소 추가)
@@ -447,163 +461,263 @@ fun DashboardScreen(
 
                     // 콘텐츠 (탭 및 상세 내용)
                     Column(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragEnd = {
+                                        // 드래그 종료 시 로직은 유지하되, Velocity 등을 고려하지 않고 단순 거리로 판단
+                                    }
+                                ) { change, dragAmount ->
+                                    // ...
+                                }
+                            }
+                            // 위 pointerInput을 아래와 같이 구현하여 적용
+                            .pointerInput(Unit) {
+                                var totalDragX = 0f
+                                var totalDragY = 0f
+                                var isDraggingHorizontal: Boolean? = null
+                                
+                                detectDragGestures(
+                                    onDragStart = { 
+                                        totalDragX = 0f
+                                        totalDragY = 0f
+                                        isDraggingHorizontal = null
+                                    },
+                                    onDragEnd = {
+                                        // 수평 드래그 - 탭 전환
+                                        if (isDraggingHorizontal == true) {
+                                            val tabs = DashboardTab.values()
+                                            val currentIndex = tabs.indexOf(selectedTab)
+                                            // 민감도 유지 (50f)
+                                            if (totalDragX < -50f) { 
+                                                val nextIndex = (currentIndex + 1).coerceAtMost(tabs.lastIndex)
+                                                selectedTab = tabs[nextIndex]
+                                            } else if (totalDragX > 50f) { 
+                                                val prevIndex = (currentIndex - 1).coerceAtLeast(0)
+                                                selectedTab = tabs[prevIndex]
+                                            }
+                                        } 
+                                        // 수직 드래그 - 오버레이 닫기 (하향 스와이프)
+                                        else if (totalDragY > 100f) { 
+                                            dashboardState = DashboardState.INITIAL
+                                        }
+                                    }
+                                ) { change, dragAmount ->
+                                    if (isDraggingHorizontal == null) {
+                                        // 초기 움직임으로 방향 판별 (탄력적)
+                                        if (kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
+                                            isDraggingHorizontal = true
+                                        } else if (dragAmount.y > 0) {
+                                            // 아래로 당길 때만 수직 제스처로 인정 (닫기 위함)
+                                            isDraggingHorizontal = false
+                                        }
+                                    }
+                                    
+                                    if (isDraggingHorizontal == true) {
+                                        totalDragX += dragAmount.x
+                                        // 수평 드래그 중에는 상위/하위 스크롤 간섭 방지
+                                        if (kotlin.math.abs(totalDragX) > 10f) {
+                                             change.consume()
+                                        }
+                                    } else if (isDraggingHorizontal == false) {
+                                        totalDragY += dragAmount.y
+                                        // 닫기 제스처 감지 시 이벤트 소비
+                                        if (totalDragY > 10f) {
+                                            change.consume()
+                                        }
+                                    }
+                                }
+                            }
                     ) {
-                        // 탭 바
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 0.dp) // 상단 패딩 제거
-                        ) {
-                            DashboardTabBar(
-                                selectedTab = selectedTab,
-                                onTabSelected = { selectedTab = it }
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp)) // 탭바와 콘텐츠 간격 추가
+                        // Box로 전체 감싸기 (AnimatedVisibility의 align() 스코프 복구)
+                        Box(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // 탭 바 제거됨 (외부로 이동)
+                                
+                                Spacer(modifier = Modifier.height(4.dp))
 
-                        // 내부 스크롤 콘텐츠
-                        val density = LocalDensity.current
-                        val slideDistance = with(density) { 10.dp.roundToPx() } // 20dp -> 10dp로 감소하여 잘림 방지
+                                // 2. 데일리 업데이트 (탭 컨텐츠)
+                                // 탭 제목 + 소제목 (AnimatedContent 밖으로 이동 - 슬라이드 효과 적용 안됨)
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 10.dp)
+                                ) {
+                                    Text(
+                                        text = selectedTab.headerTitle,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDarkTheme) Color.White else Color.Black,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                                    )
+                                    Text(
+                                        text = selectedTab.subtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                                    )
+                                }
 
-                        // 탭 내용 전환 애니메이션
-                        AnimatedContent(
+                                // 탭 내용 전환 애니메이션
+                                AnimatedContent(
                             targetState = selectedTab,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 20.dp) // 콘텐츠 폭에 맞춰 여백 확보
+                                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)), // 확보된 영역 안에서 상단 라운드 처리
                             transitionSpec = {
                                 val direction = if (targetState.ordinal > initialState.ordinal) {
-                                    // 오른쪽으로 이동 (예: 0 -> 1)
-                                    // 새 콘텐츠: 오른쪽에서 들어옴, 구 콘텐츠: 왼쪽으로 나감
                                     AnimatedContentTransitionScope.SlideDirection.Left
                                 } else {
-                                    // 왼쪽으로 이동 (예: 1 -> 0)
-                                    // 새 콘텐츠: 왼쪽에서 들어옴, 구 콘텐츠: 오른쪽으로 나감
                                     AnimatedContentTransitionScope.SlideDirection.Right
                                 }
 
+                                // Spring 애니메이션으로 부드러움 극대화
                                 slideIntoContainer(
                                     towards = direction,
-                                    animationSpec = tween(500) // 조금 더 부드럽게 시간 늘림
-                                ) + fadeIn(animationSpec = tween(500)) togetherWith
+                                    animationSpec = spring(
+                                        stiffness = Spring.StiffnessLow, 
+                                        dampingRatio = Spring.DampingRatioNoBouncy
+                                    )
+                                ) + fadeIn(
+                                    animationSpec = tween(300)
+                                ) togetherWith
                                 slideOutOfContainer(
                                     towards = direction,
-                                    animationSpec = tween(500)
-                                ) + fadeOut(animationSpec = tween(500))
+                                    animationSpec = spring(
+                                        stiffness = Spring.StiffnessLow,
+                                        dampingRatio = Spring.DampingRatioNoBouncy
+                                    )
+                                ) + fadeOut(
+                                    animationSpec = tween(300)
+                                )
                             },
                             label = "TabContent"
                         ) { targetTab ->
-                            val scrollState = rememberScrollState()
+                            // HISTORY 탭의 아코디언 확장 상태 추적
+                            val isHighRiskExpanded = remember { mutableStateOf(false) }
+                            val isMediumRiskExpanded = remember { mutableStateOf(false) }
+                            val isLowRiskExpanded = remember { mutableStateOf(false) }
+                            val isAnyExpanded = isHighRiskExpanded.value || isMediumRiskExpanded.value || isLowRiskExpanded.value
                             
-                            Column(
+                            // 내부 스크롤 컬럼 (LazyColumn으로 변경하여 성능 최적화)
+                            LazyColumn(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .pointerInput(scrollState) {
-                                        var totalDragX = 0f
-                                        var totalDragY = 0f
-                                        var isDraggingHorizontal: Boolean? = null
-                                        
-                                        detectDragGestures(
-                                            onDragStart = { 
-                                                totalDragX = 0f
-                                                totalDragY = 0f
-                                                isDraggingHorizontal = null
-                                            },
-                                            onDragEnd = {
-                                                // 수평 드래그 - 탭 전환
-                                                if (isDraggingHorizontal == true) {
-                                                    val tabs = DashboardTab.values()
-                                                    val currentIndex = tabs.indexOf(selectedTab)
-                                                    if (totalDragX < -100f) { // Swipe Left -> Next
-                                                        val nextIndex = (currentIndex + 1).coerceAtMost(tabs.lastIndex)
-                                                        selectedTab = tabs[nextIndex]
-                                                    } else if (totalDragX > 100f) { // Swipe Right -> Prev
-                                                        val prevIndex = (currentIndex - 1).coerceAtLeast(0)
-                                                        selectedTab = tabs[prevIndex]
-                                                    }
-                                                } 
-                                                // 수직 드래그 - 오버레이 닫기
-                                                else if (totalDragY > 150f) { // 아래로 스와이프
-                                                    dashboardState = DashboardState.INITIAL
-                                                }
-                                            }
-                                        ) { change, dragAmount ->
-                                            // 스크롤이 맨 위이고 아래로 드래그하는 경우, 수직 드래그로 우선 처리
-                                            val isAtTop = scrollState.value == 0
-                                            val isDraggingDown = dragAmount.y > 0
-                                            
-                                            if (isDraggingHorizontal == null) {
-                                                // 첫 움직임 방향 결정
-                                                if (isAtTop && isDraggingDown) {
-                                                    // 스크롤 맨 위에서 아래로 드래그하면 수직으로 우선 처리
-                                                    isDraggingHorizontal = false
-                                                } else {
-                                                    // 일반적인 경우 수평/수직 판단
-                                                    isDraggingHorizontal = kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)
-                                                }
-                                            }
-                                            
-                                            if (isDraggingHorizontal == true) {
-                                                // 수평 드래그 - 탭 전환
-                                                change.consume()
-                                                totalDragX += dragAmount.x
-                                            } else {
-                                                // 수직 드래그 - 오버레이 닫기 또는 스크롤
-                                                if (isAtTop && isDraggingDown) {
-                                                    // 스크롤 맨 위에서 아래로 드래그하면 consume (오버레이 닫기)
-                                                    change.consume()
-                                                    totalDragY += dragAmount.y
-                                                }
-                                                // 그 외에는 스크롤에 맡김
-                                            }
-                                        }
-                                    }
-                                    .verticalScroll(scrollState)
-                                    .padding(horizontal = 20.dp)
-                                    .navigationBarsPadding()
-                                    .padding(bottom = 20.dp)
+                                    .fillMaxSize(), // navigationBarsPadding 제거하여 하단 꽉 채움
+                                contentPadding = PaddingValues(bottom = 130.dp), // 탭 바 + 네비게이션 바 공간 확보
+                                userScrollEnabled = when (targetTab) {
+                                    DashboardTab.RATIO -> false // 비율 탭은 스크롤 비활성화
+                                    DashboardTab.HISTORY -> isAnyExpanded // HISTORY 탭은 아코디언 열렸을 때만 스크롤 허용
+                                    else -> true // 나머지 탭은 스크롤 허용
+                                }
                             ) {
+                                    // === 데일리 업데이트 탭 컨텐츠 (당일 데이터만 표시) ===
                                 when (targetTab) {
                                     DashboardTab.RATIO -> {
-                                        StaggeredAnimatedItem(delay = 0) {
-                                            DailyRiskSummaryCard(state.dailyStats)
+                                        // 누적 탐지 비교 바 차트 (상단)
+                                        item {
+                                            StaggeredAnimatedItem(delay = 0) {
+                                                CumulativeVsDailyComparisonCard(
+                                                    totalCumulative = state.totalDetectionCount,
+                                                    todayCumulative = state.dailyStats.highRiskDetail.count + 
+                                                                     state.dailyStats.mediumRiskDetail.count + 
+                                                                     state.dailyStats.lowRiskDetail.count
+                                                )
+                                            }
                                         }
-                                        Spacer(modifier = Modifier.height(40.dp))
+                                        item { Spacer(modifier = Modifier.height(12.dp)) }
+                                        // 일일 탐지 비교 파이 차트 (하단)
+                                        item {
+                                            StaggeredAnimatedItem(delay = 100) {
+                                                DailyRiskSummaryCard(state.dailyStats)
+                                            }
+                                        }
+                                        item { Spacer(modifier = Modifier.height(40.dp)) }
                                     }
                                     DashboardTab.HISTORY -> {
-                                        StaggeredAnimatedItem(delay = 0) {
-                                            DetailedRiskCard("일일 고위험 탐지", state.dailyStats.highRiskDetail, RiskHigh, Icons.Default.Warning)
+                                        item {
+                                            StaggeredAnimatedItem(delay = 0) {
+                                                DetailedRiskCard(
+                                                    title = "고위험 키워드",
+                                                    riskDetail = state.dailyStats.highRiskDetail,
+                                                    color = RiskHigh,
+                                                    iconRes = R.drawable.ic_massagebox_cross,
+                                                    isExpanded = isHighRiskExpanded.value,
+                                                    onExpandedChange = { isHighRiskExpanded.value = it }
+                                                )
+                                            }
                                         }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        StaggeredAnimatedItem(delay = 100) {
-                                            DetailedRiskCard("일일 중위험 탐지", state.dailyStats.mediumRiskDetail, RiskMedium, Icons.Default.ErrorOutline)
+                                        item { Spacer(modifier = Modifier.height(12.dp)) }
+                                        item {
+                                            StaggeredAnimatedItem(delay = 100) {
+                                                DetailedRiskCard(
+                                                    title = "중위험 키워드",
+                                                    riskDetail = state.dailyStats.mediumRiskDetail,
+                                                    color = RiskMedium,
+                                                    iconRes = R.drawable.ic_massagebox_exclamation,
+                                                    isExpanded = isMediumRiskExpanded.value,
+                                                    onExpandedChange = { isMediumRiskExpanded.value = it }
+                                                )
+                                            }
                                         }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        StaggeredAnimatedItem(delay = 200) {
-                                            DetailedRiskCard("일일 저위험 탐지", state.dailyStats.lowRiskDetail, RiskLow, Icons.Default.HelpOutline)
+                                        item { Spacer(modifier = Modifier.height(12.dp)) }
+                                        item {
+                                            StaggeredAnimatedItem(delay = 200) {
+                                                DetailedRiskCard(
+                                                    title = "저위험 키워드",
+                                                    riskDetail = state.dailyStats.lowRiskDetail,
+                                                    color = RiskLow,
+                                                    iconRes = R.drawable.ic_massagebox_question,
+                                                    isExpanded = isLowRiskExpanded.value,
+                                                    onExpandedChange = { isLowRiskExpanded.value = it }
+                                                )
+                                            }
                                         }
-                                        Spacer(modifier = Modifier.height(40.dp))
+                                        item { Spacer(modifier = Modifier.height(40.dp)) }
                                     }
                                     DashboardTab.LOG -> {
                                         if (state.recentAlerts.isEmpty()) {
-                                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                                                Text("최근 알림이 없습니다.", color = TextSecondary)
+                                            item {
+                                                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                                    Text("최근 알림이 없습니다.", color = TextSecondary)
+                                                }
                                             }
                                         } else {
-                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                state.recentAlerts.forEachIndexed { index, alert ->
-                                                    // 순차적 애니메이션 적용
-                                                    StaggeredAnimatedItem(delay = index * 50) {
-                                                        RecentAlertItem(alert = alert)
-                                                    }
+                                            // 전체 삭제 버튼
+                                            item {
+                                                Button(
+                                                    onClick = { /* TODO: Clear all alerts */ },
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFFFF5252)
+                                                    )
+                                                ) {
+                                                    Text("알림 전체 삭제", style = MaterialTheme.typography.labelLarge)
                                                 }
-                                                Spacer(modifier = Modifier.height(40.dp))
+                                                Spacer(modifier = Modifier.height(12.dp))
                                             }
+                                            
+                                            itemsIndexed(state.recentAlerts) { index, alert ->
+                                                // 순차적 애니메이션 적용 (화면에 보이는 초기 아이템은 즉시 표시 - 프리로딩)
+                                                StaggeredAnimatedItem(
+                                                    delay = if (index < 8) 0 else (index % 6) * 50, 
+                                                    skeleton = { RecentAlertSkeleton() }
+                                                ) {
+                                                    RecentAlertItem(alert = alert)
+                                                }
+                                                // Column의 spacedBy 대신 각 아이템 아래에 Spacer 추가
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                            }
+                                            item { Spacer(modifier = Modifier.height(40.dp)) }
                                         }
                                     }
                                 }
                             }
                         }
+                        }
                     }
+                }
                 }
             }
         }
@@ -636,12 +750,30 @@ fun DashboardScreen(
                 WeekCalendarSection()
             }
         }
+
+        // 3. 하단 탭 바 (화면 최하단 고정) - EXPANDED 상태일 때만 등장
+        AnimatedVisibility(
+            visible = dashboardState == DashboardState.EXPANDED,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .zIndex(1f) // 오버레이보다 위에 강제 배치
+                .padding(horizontal = 20.dp, vertical = 10.dp) // 여백 추가
+        ) {
+            DashboardTabBar(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it }
+            )
+        }
     }
 }
 
 @Composable
 fun StaggeredAnimatedItem(
     delay: Int = 0,
+    skeleton: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
@@ -669,14 +801,22 @@ fun StaggeredAnimatedItem(
         label = "alpha"
     )
 
-    Box(
-        modifier = Modifier
-            .graphicsLayer {
-                translationY = offsetY.toPx()
-                this.alpha = alpha
-            }
-    ) {
-        content()
+    Box {
+        // Skeleton (Loading State)
+        if (!visible && skeleton != null) {
+            skeleton()
+        }
+
+        // Real Content (Animated)
+        Box(
+            modifier = Modifier
+                .graphicsLayer {
+                    translationY = offsetY.toPx()
+                    this.alpha = alpha
+                }
+        ) {
+            content()
+        }
     }
 }
 
@@ -772,88 +912,132 @@ fun StatusBadge(status: SecurityStatus) {
 @Composable
 fun DailyRiskSummaryCard(dailyStats: DailyRiskStats) {
     DashboardCard(backgroundColor = BackgroundLight) {
-        Row(
+        Column(
             modifier = Modifier
                 .padding(20.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.Top
+                .fillMaxWidth()
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "일일 위험 탐지",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Text(
-                    "고위험 + 중위험 + 저위험",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                RiskRatioRow("일일 고위험 탐지", dailyStats.highRiskRatio, RiskHigh, Icons.Default.Warning)
-                Spacer(modifier = Modifier.height(10.dp))
-                RiskRatioRow("일일 중위험 탐지", dailyStats.mediumRiskRatio, RiskMedium, Icons.Default.ErrorOutline)
-                Spacer(modifier = Modifier.height(10.dp))
-                RiskRatioRow("일일 저위험 탐지", dailyStats.lowRiskRatio, RiskLow, Icons.Default.HelpOutline)
-            }
-            Spacer(modifier = Modifier.width(20.dp))
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(140.dp)
+            // 타이틀
+            Text(
+                "일일 탐지 비교",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 2. 하단 콘텐츠 (차트 + 태그)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween // 양쪽 배분
             ) {
-                CircularProgressIndicator(
-                    progress = 1f,
-                    modifier = Modifier.size(140.dp),
-                    color = Color(0xFFE0E0E0),
-                    strokeWidth = 16.dp
-                )
-                CircularProgressIndicator(
-                    progress = dailyStats.highRiskRatio,
-                    modifier = Modifier.size(140.dp),
-                    color = RiskHigh,
-                    strokeWidth = 16.dp
-                )
-                CircularProgressIndicator(
-                    progress = dailyStats.highRiskRatio + dailyStats.mediumRiskRatio,
-                    modifier = Modifier.size(140.dp),
-                    color = RiskMedium,
-                    strokeWidth = 16.dp
-                )
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // 차트 (왼쪽)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(140.dp)
                 ) {
-                    Text(
-                        "누적",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                    // 배경 (회색, 전체 100%)
+                    CircularProgressIndicator(
+                        progress = 1f,
+                        modifier = Modifier.size(140.dp),
+                        color = Color(0xFFE0E0E0),
+                        strokeWidth = 16.dp
                     )
-                    Text(
-                        "%,d".format(dailyStats.cumulativeCount),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
+                    // 저위험 (노랑, high + medium + low) - 조건부 렌더링
+                    if (dailyStats.lowRiskRatio > 0f || dailyStats.mediumRiskRatio > 0f || dailyStats.highRiskRatio > 0f) {
+                        CircularProgressIndicator(
+                            progress = dailyStats.highRiskRatio + dailyStats.mediumRiskRatio + dailyStats.lowRiskRatio,
+                            modifier = Modifier.size(140.dp),
+                            color = RiskLow,
+                            strokeWidth = 16.dp
+                        )
+                    }
+                    // 중위험 (주황, high + medium) - 조건부 렌더링
+                    if (dailyStats.mediumRiskRatio > 0f || dailyStats.highRiskRatio > 0f) {
+                        CircularProgressIndicator(
+                            progress = dailyStats.highRiskRatio + dailyStats.mediumRiskRatio,
+                            modifier = Modifier.size(140.dp),
+                            color = RiskMedium,
+                            strokeWidth = 16.dp
+                        )
+                    }
+                    // 고위험 (빨강, high만) - 조건부 렌더링
+                    if (dailyStats.highRiskRatio > 0f) {
+                        CircularProgressIndicator(
+                            progress = dailyStats.highRiskRatio,
+                            modifier = Modifier.size(140.dp),
+                            color = RiskHigh,
+                            strokeWidth = 16.dp
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "일일 탐지",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        Text(
+                            "%,d".format(dailyStats.highRiskDetail.count + dailyStats.mediumRiskDetail.count + dailyStats.lowRiskDetail.count),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            "건",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(20.dp))
+
+                // 태그/비율 정보 (오른쪽)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    RiskRatioRow("고위험 탐지", dailyStats.highRiskRatio, RiskHigh, R.drawable.ic_magnifyingglass_cross)
+                    RiskRatioRow("중위험 탐지", dailyStats.mediumRiskRatio, RiskMedium, R.drawable.ic_magnifyingglass_exclamation)
+                    RiskRatioRow("저위험 탐지", dailyStats.lowRiskRatio, RiskLow, R.drawable.ic_magnifyingglass_question)
                 }
             }
         }
     }
 }
 
+
+
 @Composable
-fun RiskRatioRow(title: String, ratio: Float, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+fun RiskRatioRow(title: String, ratio: Float, color: Color, iconRes: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+        androidx.compose.foundation.Image(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
         Spacer(modifier = Modifier.width(8.dp))
         Column {
-            Text(title, style = MaterialTheme.typography.bodySmall, color = color)
-            Text("${(ratio * 100)}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.bodySmall, color = color, fontWeight = FontWeight.Bold)
+            val safeRatio = if (ratio.isNaN() || ratio.isInfinite()) 0f else ratio
+            val percentage = safeRatio * 100
+            val formattedPercentage = when {
+                percentage == 0f -> "0%"
+                percentage == 100f -> "100%"
+                percentage % 1 == 0f -> "${percentage.toInt()}%" // 정수로 떨어지는 경우도 소수점 제외 (선택 사항이나 깔끔하게)
+                else -> "${String.format("%.1f", percentage)}%"
+            }
+            Text(formattedPercentage, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-fun RiskStatItem(label: String, count: Int, color: Color) {
+fun RiskStatItem(label: String, count: Int, color: Color, iconRes: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -870,11 +1054,10 @@ fun RiskStatItem(label: String, count: Int, color: Color) {
                     .background(color.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = iconRes),
                     contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -895,11 +1078,103 @@ fun RiskStatItem(label: String, count: Int, color: Color) {
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "개",
+                text = "건",
                 fontSize = 12.sp,
                 color = TextSecondary,
                 modifier = Modifier.padding(bottom = 3.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun CumulativeVsDailyComparisonCard(
+    totalCumulative: Int,
+    todayCumulative: Int
+) {
+    DashboardCard(backgroundColor = BackgroundLight) {
+        Column(
+            modifier = Modifier
+                .padding(20.dp)
+                .fillMaxWidth()
+        ) {
+            // 타이틀
+            Text(
+                "누적 탐지 비교",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 라벨: 총 누적 (왼쪽) / 오늘 (오른쪽)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "총 누적",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "%,d 건".format(totalCumulative),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "오늘",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "%,d 건".format(todayCumulative),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2979EA)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 단일 바: 배경 회색(총 누적), 오른쪽에서 오늘 탐지량 채우기
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFE0E0E0))
+            ) {
+                val ratio = if (totalCumulative > 0) {
+                    (todayCumulative.toFloat() / totalCumulative.toFloat()).coerceIn(0f, 1f)
+                } else 0f
+                
+                // 오른쪽에서 왼쪽으로 채우기
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(ratio)
+                        .align(Alignment.CenterEnd)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF2979EA),
+                                    Color(0xFF5B9BFF)
+                                )
+                            )
+                        )
+                )
+            }
         }
     }
 }

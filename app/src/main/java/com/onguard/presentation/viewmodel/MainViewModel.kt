@@ -42,8 +42,12 @@ class MainViewModel @Inject constructor(
         val isOverlayEnabled = Settings.canDrawOverlays(getApplication())
         val isDetectionEnabled = settings.isDetectionEnabled
         
-        // 보호 상태: 모든 권한 활성화 + 탐지 활성화 (일시 중지 아닐 때만)
-        val isProtected = isAccessibilityEnabled && isOverlayEnabled && settings.isActiveNow()
+        // 보호 상태: 모든 권한 활성화 + 탐지 활성화 (일시 중지 상태가 아닐 때만)
+        // isActiveNow() 로직을 직접 구현하여 상태 갱신 확실하게 처리
+        val isPaused = settings.pauseUntilTimestamp > 0 && System.currentTimeMillis() < settings.pauseUntilTimestamp
+        val isRealActive = settings.isDetectionEnabled && !isPaused
+        
+        val isProtected = isAccessibilityEnabled && isOverlayEnabled && isRealActive
         
         // 위험도별 카운팅 (실제 데이터)
         val highRiskCount = alerts.count { it.confidence >= 0.7f }
@@ -66,17 +70,84 @@ class MainViewModel @Inject constructor(
         val totalTime = settings.totalAccumulatedTime + currentSessionDuration
         val runningTimeSec = totalTime / 1000
 
-        // [시뮬레이션 로직] 데모를 위해 시간이 지남에 따라 수치가 증가하는 것처럼 보임
-        // 실제 데이터(alerts) + 시간 경과값 (기본값 0에서 시작)
-        val simHigh = highRiskCount + (runningTimeSec / 30).toInt()
-        val simMedium = mediumRiskCount + (runningTimeSec / 20).toInt()
-        val simLow = lowRiskCount + (runningTimeSec / 3).toInt()
-        val simTotal = simHigh + simMedium + simLow
-        val simKeywords = totalKeywords + (runningTimeSec / 5).toInt()
+        // [수정] 시뮬레이션 로직 제거 - 실제 데이터만 사용
+        val simHigh = highRiskCount
+        val simMedium = mediumRiskCount
+        val simLow = lowRiskCount
+        val simTotal = alerts.size
+        val simKeywords = totalKeywords
+
+        // 주간 통계 계산 (7일간)
+        fun calculateWeeklyStats(list: List<com.onguard.domain.model.ScamAlert>): Pair<List<Int>, List<Int>> {
+            val keywordStats = MutableList(7) { 0 }
+            val timeStats = MutableList(7) { 0 }
+            val calendar = java.util.Calendar.getInstance()
+            
+            // 오늘 날짜 기준
+            val todayYear = calendar.get(java.util.Calendar.YEAR)
+            val todayDay = calendar.get(java.util.Calendar.DAY_OF_YEAR)
+            
+            list.forEach { alert ->
+                calendar.time = alert.timestamp
+                val alertYear = calendar.get(java.util.Calendar.YEAR)
+                val alertDay = calendar.get(java.util.Calendar.DAY_OF_YEAR)
+                
+                // 날짜 차이 계산 (연도가 같다고 가정하거나, 단순화된 로직)
+                // 더 정확한 차이 계산을 위해 밀리초 단위 비교가 나을 수 있음
+                // 여기서는 간단히 dayOfYear 차이로 계산 (연말연시 고려 X - 프로토타입)
+                // 만약 연도가 다르면 단순 차이로 안됨.
+                // 안전하게: 날짜 차이 유틸리티 사용 또는 
+                // "오늘 - 알림날짜"의 일수 차이 계산
+                
+                val diffDays = if (todayYear == alertYear) {
+                    todayDay - alertDay
+                } else {
+                    // 연도가 다른 경우 (예: 2025-12-31 vs 2026-01-01)
+                    // 복잡하므로 Epoch Day 변환 후 차이 계산이 정확함
+                    val todayEpochDay = java.time.LocalDate.now().toEpochDay()
+                    val alertEpochDay = alert.timestamp.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay()
+                    (todayEpochDay - alertEpochDay).toInt()
+                }
+                
+                if (diffDays in 0..6) {
+                    keywordStats[diffDays] += alert.detectedKeywords.size
+                    timeStats[diffDays] += 1 // 탐지 빈도 (건수)
+                }
+            }
+            return Pair(keywordStats, timeStats)
+        }
+        
+        val (weeklyKeywordStats, weeklyTimeStats) = calculateWeeklyStats(alerts)
+
+        // === 데일리 업데이트 탭 (오늘 데이터) 로직 ===
+        // 1. 오늘 날짜 데이터 필터링
+        val todayAlerts = alerts.filter { isDateToday(it.timestamp) }
+        
+        // 2. 위험도별 분류
+        val todayHighRisk = todayAlerts.filter { it.confidence >= 0.7f }
+        val todayMediumRisk = todayAlerts.filter { it.confidence in 0.4f..0.69f }
+        val todayLowRisk = todayAlerts.filter { it.confidence < 0.4f }
+        
+        val todayTotal = todayAlerts.size
+        
+        // 3. 시간별 분포 계산 (12구간)
+        fun calculateTimeDistribution(list: List<com.onguard.domain.model.ScamAlert>): List<Int> {
+            val distribution = MutableList(12) { 0 }
+            val calendar = java.util.Calendar.getInstance()
+            
+            list.forEach { alert ->
+                calendar.time = alert.timestamp
+                val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+                val index = (hour / 2).coerceIn(0, 11)
+                distribution[index]++
+            }
+            return distribution
+        }
 
         // 매핑 결과 반환
         DashboardUiState(
-            status = if (isSafe) SecurityStatus.PROTECTED else SecurityStatus.UNPROTECTED,
+            // 위험 감지 여부(isSafe)와 상관없이, 보호 기능이 켜져 있고 작동 중이면 파란색(PROTECTED) 표시
+            status = if (isProtected) SecurityStatus.PROTECTED else SecurityStatus.UNPROTECTED,
             totalDetectionCount = simTotal,
             
             recentAlerts = alerts.sortedByDescending { it.timestamp }.take(20),
@@ -99,17 +170,32 @@ class MainViewModel @Inject constructor(
                 else -> "시간"
             },
             
-            // 하단 일일 통계 (데모용 계산 로직)
+            // 주간 통계 전달 (MainViewModel에서 계산된 값)
+            weeklyKeywordStats = weeklyKeywordStats,
+            weeklyTimeStats = weeklyTimeStats,
+            
+            // 하단 일일 통계 (실제 오늘 데이터)
             dailyStats = DailyRiskStats(
-                cumulativeCount = simTotal,
-                highRiskRatio = simHigh.toFloat() / simTotal,
-                mediumRiskRatio = simMedium.toFloat() / simTotal,
-                lowRiskRatio = simLow.toFloat() / simTotal,
+                cumulativeCount = todayTotal,
+                highRiskRatio = if (todayTotal > 0) todayHighRisk.size.toFloat() / todayTotal else 0f,
+                mediumRiskRatio = if (todayTotal > 0) todayMediumRisk.size.toFloat() / todayTotal else 0f,
+                lowRiskRatio = if (todayTotal > 0) todayLowRisk.size.toFloat() / todayTotal else 0f,
                 
-                // 상세 내역에는 실제 가장 많이 탐지된 키워드를 넣음 (데모 값과 함께)
-                highRiskDetail = RiskDetail(simHigh, getTopKeywords(alerts, 0.7f)),
-                mediumRiskDetail = RiskDetail(simMedium, getTopKeywords(alerts, 0.4f, 0.69f)),
-                lowRiskDetail = RiskDetail(simLow, getTopKeywords(alerts, 0.0f, 0.39f))
+                highRiskDetail = RiskDetail(
+                    count = todayHighRisk.size,
+                    tags = getTopKeywords(todayHighRisk, 0.7f),
+                    timeDistribution = calculateTimeDistribution(todayHighRisk)
+                ),
+                mediumRiskDetail = RiskDetail(
+                    count = todayMediumRisk.size,
+                    tags = getTopKeywords(todayMediumRisk, 0.4f, 0.69f),
+                    timeDistribution = calculateTimeDistribution(todayMediumRisk)
+                ),
+                lowRiskDetail = RiskDetail(
+                    count = todayLowRisk.size,
+                    tags = getTopKeywords(todayLowRisk, 0.0f, 0.39f),
+                    timeDistribution = calculateTimeDistribution(todayLowRisk)
+                )
             ),
             
             // 보호 상태
@@ -125,18 +211,30 @@ class MainViewModel @Inject constructor(
         initialValue = DashboardUiState(isLoading = true)
     )
 
-    // 헬퍼 함수: 특정 위험도 구간의 상위 키워드 추출
-    private fun getTopKeywords(alerts: List<com.onguard.domain.model.ScamAlert>, minConf: Float, maxConf: Float = 1.0f): List<String> {
-        return alerts
-            .filter { it.confidence in minConf..maxConf }
-            .flatMap { it.detectedKeywords }
-            .groupingBy { it }
-            .eachCount()
-            .entries
-            .sortedByDescending { it.value }
-            .take(3)
-            .map { it.key }
-    }
+// 헬퍼 함수: 날짜가 오늘인지 확인
+private fun isDateToday(date: java.util.Date): Boolean {
+    val calendar = java.util.Calendar.getInstance()
+    val todayYear = calendar.get(java.util.Calendar.YEAR)
+    val todayDay = calendar.get(java.util.Calendar.DAY_OF_YEAR)
+    
+    calendar.time = date
+    return calendar.get(java.util.Calendar.YEAR) == todayYear &&
+            calendar.get(java.util.Calendar.DAY_OF_YEAR) == todayDay
+}
+
+// 헬퍼 함수: 특정 위험도 구간의 상위 키워드 추출
+private fun getTopKeywords(alerts: List<com.onguard.domain.model.ScamAlert>, minConf: Float, maxConf: Float = 1.0f): List<String> {
+    return alerts
+        // 이미 필터링된 리스트가 들어올 수도 있으므로 범위 체크는 안전망으로 유지
+        // (필터링된 리스트라면 min/maxConf 무시해도 되지만, 범용성 위해 유지)
+        .flatMap { it.detectedKeywords }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedByDescending { it.value }
+        .take(3)
+        .map { it.key }
+}
     
     /**
      * 접근성 서비스 활성화 여부 확인

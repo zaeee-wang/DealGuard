@@ -8,10 +8,26 @@ import androidx.compose.ui.graphics.Color
 fun String.toColor() = Color(android.graphics.Color.parseColor(if (this.startsWith("#")) this else "#$this"))
 
 // Primary Brand Colors (Orange to Peach Gradient)
-val BGGradientStart = "#EA5029".toColor() // 상단 배경 색상
+val UnprotectBGGradientStart = "#EA5029".toColor() // 비보호 상단 배경 색상 (Red)
+val ProtectBGGradientStart = "#2979ea".toColor() // 보호 상단 배경 색상 (Blue)
+val UnprotectDarkBGGradientStart = "#5E0B0B".toColor() // 비보호 다크 상단 배경 색상 (Red)
+val ProtectDarkBGGradientStart = "#143D95".toColor() // 보호 다크 상단 배경 색상 (Blue)
 val BGGradientEnd = "#FFFFFF".toColor()   // 하단 배경 색상
-val BrandGradient = Brush.verticalGradient(
-    colors = listOf(BGGradientStart, BGGradientEnd)
+
+val BrandGradientRed = Brush.verticalGradient(
+    colors = listOf(UnprotectBGGradientStart, BGGradientEnd)
+)
+
+val BrandGradientBlue = Brush.verticalGradient(
+    colors = listOf(ProtectBGGradientStart, BGGradientEnd)
+)
+
+val BrandGradientDarkRed = Brush.verticalGradient(
+    colors = listOf(UnprotectDarkBGGradientStart, BGGradientEnd)
+)
+
+val BrandGradientDarkBlue = Brush.verticalGradient(
+    colors = listOf(ProtectDarkBGGradientStart, BGGradientEnd)
 )
 
 // Risk Level Colors (이미지 디자인과 일치)

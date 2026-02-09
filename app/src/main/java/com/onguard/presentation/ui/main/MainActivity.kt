@@ -29,6 +29,13 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
         // 여기에 권한 체크 로직이나 서비스 시작 로직 등은 유지 (필요 시)
+        
+        // 알림 클릭 시 특정 화면 이동 처리
+        val goToSettings = intent.getBooleanExtra("EXTRA_GO_TO_SETTINGS", false)
+        if (goToSettings) {
+             val settingsIntent = android.content.Intent(this, com.onguard.presentation.ui.settings.SettingsActivity::class.java)
+             startActivity(settingsIntent)
+        }
 
         setContent {
             // 우리가 만든 앱 테마 적용

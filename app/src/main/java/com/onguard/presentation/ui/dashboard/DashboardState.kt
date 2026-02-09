@@ -6,23 +6,29 @@ import com.onguard.domain.model.ScamAlert
 
 // 디자인에 표시되는 모든 통계 데이터를 포함하는 UI 상태 클래스
 data class DashboardUiState(
-    val status: SecurityStatus = SecurityStatus.PROTECTED,
-    val totalDetectionCount: Int = 0, // 메인 거대 숫자
+    val status: SecurityStatus = SecurityStatus.UNPROTECTED,
+    
+    // === 메인 페이지 (총 누적 데이터 - 앱 설치 이후 전체) ===
+    val totalDetectionCount: Int = 0, // 메인 거대 숫자 (총 누적 탐지 건수)
     
     // 최근 알림 목록
     val recentAlerts: List<ScamAlert> = emptyList(),
     
-    // 상단 3개 카드 통계
+    // 상단 3개 카드 통계 (총 누적)
     val highRiskCount: Int = 0,
     val mediumRiskCount: Int = 0,
     val lowRiskCount: Int = 0,
 
-    // 중간 차트 카드 통계
+    // 중간 차트 카드 통계 (총 누적)
     val totalKeywords: Int = 0,
     val totalDetectionValue: Int = 0,
     val totalDetectionUnit: String = "시간",
+    
+    // 주간 통계 (인덱스 0: 오늘, 1: 어제, ... 6: 6일 전)
+    val weeklyKeywordStats: List<Int> = List(7) { 0 },
+    val weeklyTimeStats: List<Int> = List(7) { 0 },
 
-    // 하단 일일 위험 탐지 섹션
+    // === 데일리 업데이트 탭 (당일 데이터만 - 오늘 일자) ===
     val dailyStats: DailyRiskStats = DailyRiskStats(),
     
     // 보호 상태 관련
@@ -62,5 +68,6 @@ data class DailyRiskStats(
 
 data class RiskDetail(
     val count: Int,
-    val tags: List<String> // "개인정보 요구" 같은 태그들
+    val tags: List<String>, // "개인정보 요구" 같은 태그들
+    val timeDistribution: List<Int> = List(12) { 0 } // 0~2시, 2~4시 ... 22~24시 (총 12개 구간)
 )
