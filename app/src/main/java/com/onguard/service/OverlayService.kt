@@ -51,9 +51,11 @@ class OverlayService : Service() {
     lateinit var scamAlertRepository: ScamAlertRepository
 
     private var windowManager: WindowManager? = null
-    private var overlayView: View? = null
+    private val overlayViews = mutableListOf<View>() // 여러 오버레이 뷰 관리
     private val handler = Handler(Looper.getMainLooper())
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var isTransitioning = false // 전환 중 플래그
+    private val maxOverlays = 1 // 최대 1개만 표시 (새 알람이 오면 기존 알람 즉시 제거)
 
     companion object {
         private const val TAG = "OverlayService"
@@ -200,41 +202,86 @@ class OverlayService : Service() {
         hasCombination: Boolean
     ) {
         Log.d(TAG, "=== showOverlayWarning called ===")
-        Log.d(TAG, "  - Confidence: $confidence")
-        Log.d(TAG, "  - Reasons count: ${reasons.size}")
-        Log.d(TAG, "  - Source app: $sourceApp")
-        Log.d(TAG, "  - Warning message: $warningMessage")
-        Log.d(TAG, "  - Scam type: $scamType")
-        Log.d(TAG, "  - Suspicious parts: $suspiciousParts")
-        Log.d(TAG, "  - High risk keywords: $highRiskKeywords")
-        Log.d(TAG, "  - Medium risk keywords: $mediumRiskKeywords")
-        Log.d(TAG, "  - Low risk keywords: $lowRiskKeywords")
-        Log.d(TAG, "  - Has combination: $hasCombination")
+        Log.d(TAG, "  - Current overlays count: ${overlayViews.size}")
         
-        // Remove existing overlay if any
-        Log.d(TAG, "Removing existing overlay if any...")
-        removeOverlay()
-
-        // Create overlay view
-        Log.d(TAG, "Creating overlay view from layout...")
+        // 기존 오버레이가 있으면 즉시 페이드 아웃하여 제거
+        if (overlayViews.isNotEmpty()) {
+            removeAllOverlaysImmediately()
+        }
+        
+        // 새 오버레이 생성 및 추가
+        createAndShowOverlay(
+            confidence, reasons, sourceApp, warningMessage, scamType,
+            suspiciousParts, highRiskKeywords, mediumRiskKeywords, lowRiskKeywords, hasCombination
+        )
+    }
+    
+    /**
+     * 모든 기존 오버레이를 즉시 페이드 아웃하여 제거
+     */
+    private fun removeAllOverlaysImmediately() {
+        if (overlayViews.isEmpty()) return
+        
+        val viewsToRemove = overlayViews.toList()
+        overlayViews.clear()
+        
+        viewsToRemove.forEach { view ->
+            // 빠른 페이드 아웃 (150ms)
+            view.animate()
+                .alpha(0f)
+                .scaleX(0.5f)
+                .scaleY(0.5f)
+                .setDuration(150)
+                .withEndAction {
+                    try {
+                        windowManager?.removeView(view)
+                        Log.d(TAG, "Overlay removed immediately")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to remove overlay", e)
+                    }
+                }
+                .start()
+        }
+    }
+    
+    /**
+     * 인덱스에 따른 Y 위치 계산 (최상단에 정렬)
+     */
+    private fun getYPositionForIndex(index: Int): Int {
+        return 0 // 최상단 (상태바 위)
+    }
+    
+    /**
+     * 새 오버레이를 생성하고 위에서 아래로 페이드 인으로 표시
+     */
+    private fun createAndShowOverlay(
+        confidence: Float,
+        reasons: List<String>,
+        sourceApp: String,
+        warningMessage: String?,
+        scamType: ScamType,
+        suspiciousParts: List<String>,
+        highRiskKeywords: List<String>,
+        mediumRiskKeywords: List<String>,
+        lowRiskKeywords: List<String>,
+        hasCombination: Boolean
+    ) {
+        Log.d(TAG, "Creating new overlay view from layout...")
         val inflater = LayoutInflater.from(this)
-        overlayView = try {
+        val newOverlayView = try {
             inflater.inflate(R.layout.overlay_scam_warning, null)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to inflate overlay layout", e)
             null
         }
         
-        if (overlayView == null) {
+        if (newOverlayView == null) {
             Log.e(TAG, "Overlay view is null after inflation - cannot show warning")
             return
         }
         
         Log.d(TAG, "Overlay view created successfully")
 
-        // 신뢰도별 헤더 배경색 (기존 코드에서는 카드 전체가 흰색이므로 투명하게 처리하거나 삭제)
-        // 새로운 디자인에서는 아이콘과 텍스트 색상으로 위험도를 표현함
-        
         // 위험도에 따른 색상 결정
         val riskColor = when {
             confidence >= 0.8f -> Color.parseColor("#E56856") // 고위험: 빨강
@@ -243,41 +290,35 @@ class OverlayService : Service() {
         }
 
         // 스캠 유형 표시 및 색상 적용
-        overlayView?.findViewById<TextView>(R.id.scam_type_text)?.apply {
+        newOverlayView.findViewById<TextView>(R.id.scam_type_text)?.apply {
             text = getScamTypeLabel(scamType)
             setTextColor(riskColor)
         }
 
         // 위험도 퍼센트 표시 및 색상 적용
-        overlayView?.findViewById<TextView>(R.id.confidence_text)?.apply {
+        newOverlayView.findViewById<TextView>(R.id.confidence_text)?.apply {
             text = "${(confidence * 100).toInt()}% 위험도"
             setTextColor(riskColor)
         }
 
-        // 헤더 아이콘 틴트 적용 (신규 아이디 사용으로 버튼 틴트 방지)
-        overlayView?.findViewById<android.widget.ImageView>(R.id.header_icon_left)?.setColorFilter(riskColor)
-        overlayView?.findViewById<android.widget.ImageView>(R.id.header_icon_right)?.setColorFilter(riskColor)
-
-        // LLM 생성 경고 메시지 또는 기본 메시지
+        // 헤더 아이콘 틴트 적용
+        newOverlayView.findViewById<android.widget.ImageView>(R.id.header_icon_left)?.setColorFilter(riskColor)
+        newOverlayView.findViewById<android.widget.ImageView>(R.id.header_icon_right)?.setColorFilter(riskColor)
 
         // LLM 생성 경고 메시지 또는 기본 메시지
         val displayMessage = warningMessage ?: generateDefaultWarning(scamType, confidence)
-        overlayView?.findViewById<TextView>(R.id.warning_message)?.text = displayMessage
-
-        // TODO: 신규 디자인의 '위험 요소 분석' 섹션(HorizontalScrollView 등)에 실제 사유(reasons)와 
-        // 의심 문구(suspiciousParts)를 동적으로 매핑하는 로직이 필요함. 
-        // 현재는 레이아웃에 고정된 샘플 데이터가 표시됨.
+        newOverlayView.findViewById<TextView>(R.id.warning_message)?.text = displayMessage
 
         // 위험 요소 분석 업데이트
-        updateRiskAnalysis(highRiskKeywords, mediumRiskKeywords, lowRiskKeywords, hasCombination)
+        updateRiskAnalysisForView(newOverlayView, highRiskKeywords, mediumRiskKeywords, lowRiskKeywords, hasCombination)
 
         // Set button listeners
-        val btnDetails = overlayView?.findViewById<View>(R.id.btn_details)
-        val btnGoApp = overlayView?.findViewById<View>(R.id.btn_go_app)
-        val btnDismiss = overlayView?.findViewById<View>(R.id.btn_dismiss)
-        val analysisContainer = overlayView?.findViewById<View>(R.id.analysis_container)
+        val btnDetails = newOverlayView.findViewById<View>(R.id.btn_details)
+        val btnGoApp = newOverlayView.findViewById<View>(R.id.btn_go_app)
+        val btnDismiss = newOverlayView.findViewById<View>(R.id.btn_dismiss)
+        val analysisContainer = newOverlayView.findViewById<View>(R.id.analysis_container)
 
-        // 버튼 노출 조건: 분석할 위험 요소가 하나도 없으면 바로 '앱에서 보기' 표시 (원래대로)
+        // 버튼 노출 조건
         val hasRiskFactors = highRiskKeywords.isNotEmpty() ||
                 mediumRiskKeywords.isNotEmpty() ||
                 lowRiskKeywords.isNotEmpty() ||
@@ -292,34 +333,22 @@ class OverlayService : Service() {
         }
 
         btnDetails?.setOnClickListener {
-            // "자세히 보기" 클릭 시 상세 분석 섹션 표시 및 버튼 전환
-            // 애니메이션 제거 (사용자 요청)
-            
             analysisContainer?.visibility = View.VISIBLE
             btnDetails.visibility = View.GONE
             btnGoApp?.visibility = View.VISIBLE
-            
-            // 자동 소생(Auto-dismiss) 핸들러 초기화 (상세 보기 시에는 더 오래 보여줄 수 있도록)
-            handler.removeCallbacksAndMessages(null)
-            handler.postDelayed({
-                removeOverlay()
-                stopSelf()
-            }, AUTO_DISMISS_DELAY * 2) // 상세 보기 시에는 시간을 2배로 연장
         }
 
         btnGoApp?.setOnClickListener {
-            // 앱 대시보드(MainActivity)로 이동
             val intent = Intent(this, com.onguard.presentation.ui.main.MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             startActivity(intent)
-            removeOverlay()
+            removeAllOverlays()
             stopSelf()
         }
 
         btnDismiss?.setOnClickListener {
-            removeOverlay()
-            stopSelf()
+            removeSpecificOverlay(newOverlayView)
         }
 
         // Create layout params
@@ -333,68 +362,45 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP
-            y = 0
+            y = 0 // 최상단
         }
 
         // Add view to window
         Log.d(TAG, "Adding overlay view to WindowManager...")
-        Log.d(TAG, "  - WindowManager: ${windowManager != null}")
-        Log.d(TAG, "  - Overlay view: ${overlayView != null}")
-        Log.d(TAG, "  - Params width: ${params.width}, height: ${params.height}")
-        Log.d(TAG, "  - Params type: ${params.type}, flags: ${params.flags}")
         
         try {
-            windowManager?.addView(overlayView, params)
-            Log.i(TAG, "=== Overlay view added successfully ===")
-            Log.i(TAG, "  - View should now be visible on screen")
+            // 초기 상태: 위쪽에서 크게 시작 (앞에서 날아오는 효과)
+            newOverlayView.alpha = 0f
+            newOverlayView.scaleX = 1.2f
+            newOverlayView.scaleY = 1.2f
+            newOverlayView.translationY = -50f * resources.displayMetrics.density
             
-            // 오버레이 뷰 상태 확인
-            overlayView?.let { view ->
-                view.post {
-                    Log.d(TAG, "=== Overlay view state check ===")
-                    Log.d(TAG, "  - Visibility: ${view.visibility}")
-                    Log.d(TAG, "  - Width: ${view.width}px")
-                    Log.d(TAG, "  - Height: ${view.height}px")
-                    Log.d(TAG, "  - Alpha: ${view.alpha}")
-                    Log.d(TAG, "  - Background: ${view.background != null}")
-                    Log.d(TAG, "  - X position: ${view.x}")
-                    Log.d(TAG, "  - Y position: ${view.y}")
-                    Log.d(TAG, "  - Is attached: ${view.isAttachedToWindow}")
-                    
-                    // 뷰의 실제 표시 여부 확인
-                    val isVisible = view.visibility == View.VISIBLE && 
-                                   view.width > 0 && 
-                                   view.height > 0 &&
-                                   view.alpha > 0f
-                    Log.i(TAG, "  - Is actually visible: $isVisible")
-                    
-                    if (!isVisible) {
-                        Log.w(TAG, "WARNING: Overlay view added but may not be visible!")
-                        Log.w(TAG, "  - Check overlay permission, view size, and position")
-                    }
-                }
-            }
+            windowManager?.addView(newOverlayView, params)
+            overlayViews.add(newOverlayView) // 리스트에 추가
+            Log.i(TAG, "=== Overlay view added successfully (${overlayViews.size}/${maxOverlays}) ===")
+            
+            // 위에서 날아와서 제자리로 페이드 인 애니메이션 (200ms)
+            newOverlayView.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .translationY(0f)
+                .setDuration(200)
+                .start()
 
-            // Auto-dismiss after delay
+            // Auto-dismiss after delay (맨 위 오버레이만)
             handler.postDelayed({
                 Log.d(TAG, "=== Auto-dismissing overlay after $AUTO_DISMISS_DELAY ms ===")
-                removeOverlay()
-                stopSelf()
+                removeSpecificOverlay(newOverlayView)
             }, AUTO_DISMISS_DELAY)
 
         } catch (e: SecurityException) {
             Log.e(TAG, "=== SecurityException: Overlay permission issue ===", e)
-            Log.e(TAG, "  - Error: ${e.message}")
-            Log.e(TAG, "  - Please check 'Display over other apps' permission in Settings")
-            overlayView = null
+            overlayViews.remove(newOverlayView)
         } catch (e: Exception) {
             Log.e(TAG, "=== Failed to add overlay view ===", e)
-            Log.e(TAG, "  - Exception type: ${e.javaClass.name}")
-            Log.e(TAG, "  - Exception message: ${e.message}")
-            Log.e(TAG, "  - WindowManager: ${windowManager != null}")
-            Log.e(TAG, "  - Overlay view: ${overlayView != null}")
             e.printStackTrace()
-            overlayView = null
+            overlayViews.remove(newOverlayView)
         }
     }
 
@@ -497,19 +503,18 @@ class OverlayService : Service() {
     /**
      * 위험 요소 분석 섹션을 동적으로 업데이트한다.
      */
-    private fun updateRiskAnalysis(
+    private fun updateRiskAnalysisForView(
+        view: View,
         highKeywords: List<String>,
         mediumKeywords: List<String>,
         lowKeywords: List<String>,
         hasCombination: Boolean
     ) {
-        val root = overlayView ?: return
-
         // 1. 고위험
         updateRiskRow(
-            root.findViewById(R.id.high_risk_row),
-            root.findViewById(R.id.high_risk_count),
-            root.findViewById(R.id.high_risk_tags),
+            view.findViewById(R.id.high_risk_row),
+            view.findViewById(R.id.high_risk_count),
+            view.findViewById(R.id.high_risk_tags),
             "고위험 ${highKeywords.size}개 발견",
             highKeywords,
             R.drawable.bg_tag_high,
@@ -518,9 +523,9 @@ class OverlayService : Service() {
 
         // 2. 중위험
         updateRiskRow(
-            root.findViewById(R.id.medium_risk_row),
-            root.findViewById(R.id.medium_risk_count),
-            root.findViewById(R.id.medium_risk_tags),
+            view.findViewById(R.id.medium_risk_row),
+            view.findViewById(R.id.medium_risk_count),
+            view.findViewById(R.id.medium_risk_tags),
             "중위험 ${mediumKeywords.size}개 발견",
             mediumKeywords,
             R.drawable.bg_tag_medium,
@@ -529,9 +534,9 @@ class OverlayService : Service() {
 
         // 3. 저위험
         updateRiskRow(
-            root.findViewById(R.id.low_risk_row),
-            root.findViewById(R.id.low_risk_count),
-            root.findViewById(R.id.low_risk_tags),
+            view.findViewById(R.id.low_risk_row),
+            view.findViewById(R.id.low_risk_count),
+            view.findViewById(R.id.low_risk_tags),
             "저위험 ${lowKeywords.size}개 발견",
             lowKeywords,
             R.drawable.bg_tag_low,
@@ -539,10 +544,10 @@ class OverlayService : Service() {
         )
 
         // 4. 의심스러운 조합
-        val comboRow = root.findViewById<View>(R.id.combination_row)
+        val comboRow = view.findViewById<View>(R.id.combination_row)
         if (hasCombination) {
             comboRow?.visibility = View.VISIBLE
-            val comboTags = root.findViewById<LinearLayout>(R.id.combination_tags)
+            val comboTags = view.findViewById<LinearLayout>(R.id.combination_tags)
             comboTags?.removeAllViews()
             addTagToContainer(comboTags, "긴급+금전+URL", R.drawable.bg_tag_combo, Color.parseColor("#838383"))
         } else {
@@ -608,30 +613,57 @@ class OverlayService : Service() {
         container.addView(tagView)
     }
 
-    private fun removeOverlay() {
-        Log.d(TAG, "=== removeOverlay() called ===")
-        Log.d(TAG, "  - Overlay view exists: ${overlayView != null}")
+    /**
+     * 특정 오버레이 제거
+     */
+    private fun removeSpecificOverlay(view: View) {
+        Log.d(TAG, "=== removeSpecificOverlay() called ===")
         
-        overlayView?.let { view ->
-            try {
-                Log.d(TAG, "  - Removing overlay view from WindowManager...")
-                Log.d(TAG, "  - View state before removal:")
-                Log.d(TAG, "    - Visibility: ${view.visibility}")
-                Log.d(TAG, "    - Width: ${view.width}px, Height: ${view.height}px")
-                Log.d(TAG, "    - Is attached: ${view.isAttachedToWindow}")
-                
-                windowManager?.removeView(view)
-                overlayView = null
-                Log.i(TAG, "=== Overlay view removed successfully ===")
-            } catch (e: Exception) {
-                Log.e(TAG, "=== Failed to remove overlay view ===", e)
-                Log.e(TAG, "  - Exception type: ${e.javaClass.name}")
-                Log.e(TAG, "  - Exception message: ${e.message}")
-                e.printStackTrace()
-            }
-        } ?: run {
-            Log.d(TAG, "  - No overlay view to remove")
+        if (!overlayViews.contains(view)) {
+            Log.d(TAG, "  - View not in list")
+            return
         }
+        
+        // 페이드 아웃 애니메이션
+        view.animate()
+            .alpha(0f)
+            .setDuration(200)
+            .withEndAction {
+                try {
+                    windowManager?.removeView(view)
+                    overlayViews.remove(view)
+                    Log.i(TAG, "=== Overlay view removed (${overlayViews.size} remaining) ===")
+                    
+                    // 모든 오버레이가 제거되면 서비스 종료
+                    if (overlayViews.isEmpty()) {
+                        stopSelf()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "=== Failed to remove overlay view ===", e)
+                    e.printStackTrace()
+                }
+            }
+            .start()
+    }
+    
+    /**
+     * 모든 오버레이 제거
+     */
+    private fun removeAllOverlays() {
+        Log.d(TAG, "=== removeAllOverlays() called ===")
+        Log.d(TAG, "  - Overlay views count: ${overlayViews.size}")
+        
+        overlayViews.toList().forEach { view ->
+            try {
+                windowManager?.removeView(view)
+                Log.d(TAG, "  - Removed overlay view")
+            } catch (e: Exception) {
+                Log.e(TAG, "  - Failed to remove overlay view", e)
+            }
+        }
+        
+        overlayViews.clear()
+        Log.i(TAG, "=== All overlay views removed ===")
     }
 
     private fun getWindowType(): Int {
@@ -742,7 +774,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        removeOverlay()
+        removeAllOverlays()
         Log.i(TAG, "OverlayService destroyed")
     }
 }
